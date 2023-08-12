@@ -1,6 +1,6 @@
 using System.Net;
 
-namespace RaftNode.Models;
+namespace RaftCore.Common;
 
 public class NodeInfo 
 {

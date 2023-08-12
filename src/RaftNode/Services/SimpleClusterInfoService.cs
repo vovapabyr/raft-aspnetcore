@@ -1,18 +1,19 @@
 using System.Net;
 using Microsoft.Extensions.Options;
 using Polly;
-using RaftNode.Models;
+using RaftCore.Common;
+using RaftCore.Services;
 using RaftNode.Options;
 
 namespace RaftNode.Services;
 
-public class ClusterService
+public class SimpleClusterInfoService : IClusterInfoService
 {
     private readonly ClusterInfoOptions _clusterInfoOptions;
-    private readonly ILogger<ClusterService> _logger;
+    private readonly ILogger<SimpleClusterInfoService> _logger;
     private SemaphoreSlim _listLock = new SemaphoreSlim(1);
 
-    public ClusterService(IOptions<ClusterInfoOptions> clusterInfoOptions, ILogger<ClusterService> logger)
+    public SimpleClusterInfoService(IOptions<ClusterInfoOptions> clusterInfoOptions, ILogger<SimpleClusterInfoService> logger)
     {
         _clusterInfoOptions = clusterInfoOptions.Value;
         _logger = logger;

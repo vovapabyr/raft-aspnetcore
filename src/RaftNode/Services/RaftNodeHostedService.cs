@@ -1,20 +1,16 @@
-using System.Net;
 using Google.Protobuf.WellKnownTypes;
-using Grpc.Core;
 using Grpc.Net.ClientFactory;
-using Microsoft.Extensions.Options;
 using RaftNode.Extensions;
-using RaftNode.Options;
 
 namespace RaftNode.Services;
 
 public class RaftNodeHostedService : BackgroundService
 {
-    private readonly ClusterService _clusterService;
+    private readonly SimpleClusterInfoService _clusterService;
     private readonly GrpcClientFactory _grpcClientFactory;
     private readonly ILogger<RaftNodeHostedService> _logger;
 
-    public RaftNodeHostedService(ClusterService clusterService, GrpcClientFactory grpcClientFactory, ILogger<RaftNodeHostedService> logger)
+    public RaftNodeHostedService(SimpleClusterInfoService clusterService, GrpcClientFactory grpcClientFactory, ILogger<RaftNodeHostedService> logger)
     {
         _clusterService = clusterService;
         _grpcClientFactory = grpcClientFactory;
