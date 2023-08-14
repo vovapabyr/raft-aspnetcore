@@ -8,5 +8,5 @@ public interface INodeRoleBehaviourService
 
     void Select();
 
-    Task Vote();
+    event Action<NodeRole> BehaviourChanged;
 }

@@ -6,13 +6,10 @@ public class LeaderBehaviourService : INodeRoleBehaviourService
 {
     public NodeRole NodeRole => NodeRole.Leader;
 
+    public event Action<NodeRole> BehaviourChanged;
+
     public void Select()
     {
         throw new NotImplementedException();
-    }
-
-    public Task Vote()
-    {
-        throw new NotSupportedException();
     }
 }

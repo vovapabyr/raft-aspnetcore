@@ -1,4 +1,5 @@
 ﻿using System.Dynamic;
+using Microsoft.Extensions.Logging;
 using RaftCore.Commands;
 using RaftCore.Common;
 using RaftCore.Services;
@@ -26,41 +27,57 @@ public class RaftModule
 
     private string? _currentLeader = null;
 
-    private HashSet<string> _votesReceived = new HashSet<string>();  
+    private HashSet<string> _votesReceived = new HashSet<string>();
 
     #endregion
 
-    private readonly NodeInfo _currentNode;
+    private NodeInfo _currentNode;
 
-    private readonly Dictionary<string, NodeInfo> _nodes;
+    private Dictionary<string, NodeInfo> _nodes;
 
     private readonly Dictionary<NodeRole, INodeRoleBehaviourService> _behavioursServices;
 
     private INodeRoleBehaviourService _currentBehavior; 
+    
+    private readonly ILogger<RaftModule> _logger;
 
-    public RaftModule(IClusterInfoService clusterDescriptionService, IEnumerable<INodeRoleBehaviourService> behavioursServices)
+    private readonly IClusterInfoService _clusterDescriptionService;
+
+    public RaftModule(IClusterInfoService clusterDescriptionService, IEnumerable<INodeRoleBehaviourService> behavioursServices, ILogger<RaftModule> logger)
     {
-        _currentNode = clusterDescriptionService.CurrentNode ?? throw new ArgumentNullException(nameof(clusterDescriptionService.CurrentNode));
-
-        if (clusterDescriptionService.ClusterNodes == null) 
-            throw new ArgumentNullException(nameof(clusterDescriptionService.ClusterNodes));
-        // Throw on number of nodes?
+        _logger = logger;
+        _clusterDescriptionService = clusterDescriptionService;
 
         if (behavioursServices == null) 
             throw new ArgumentNullException(nameof(behavioursServices));
 
         if (behavioursServices.Count() != 3)
             throw new NotSupportedException($"Invalid number of raft roles: { behavioursServices?.Count() }.");
-
-        _nodes = clusterDescriptionService.ClusterNodes.ToDictionary(n => n.IPAddress.ToString(), n => n);
+        
         _behavioursServices = behavioursServices.ToDictionary(b => b.NodeRole, b => b);
+        foreach (var behaviour in behavioursServices) 
+            behaviour.BehaviourChanged += SwitchToBehaviour;
+    }
 
-        SwitchToBehaviour(_currentRole); 
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("STARTING RAFT MODULE.");
+        _currentNode = _clusterDescriptionService.CurrentNode ?? throw new ArgumentNullException(nameof(_clusterDescriptionService.CurrentNode));
+
+        if (_clusterDescriptionService.ClusterNodes == null) 
+            throw new ArgumentNullException(nameof(_clusterDescriptionService.ClusterNodes));
+        // Throw on number of nodes?
+        _nodes = _clusterDescriptionService.ClusterNodes.ToDictionary(n => n.IPAddress.ToString(), n => n);
+
+        SwitchToBehaviour(_currentRole);
+
+        return Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
     }
 
     public void SwitchToBehaviour(NodeRole nodeRole) 
     {
+        _logger.LogInformation($"NODE: { _currentNode }. Switching node to '{ nodeRole }'.");
         _currentBehavior = _behavioursServices[nodeRole];
-        _currentBehavior.Select(); 
+        _currentBehavior.Select();        
     }
 }

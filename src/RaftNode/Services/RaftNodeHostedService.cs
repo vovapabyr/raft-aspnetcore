@@ -1,25 +1,33 @@
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Net.ClientFactory;
+using RaftCore;
+using RaftCore.Services;
 using RaftNode.Extensions;
 
 namespace RaftNode.Services;
 
 public class RaftNodeHostedService : BackgroundService
 {
-    private readonly SimpleClusterInfoService _clusterService;
+    private readonly RaftModule _raftModule;
+    private readonly IClusterInfoService _clusterService;
     private readonly GrpcClientFactory _grpcClientFactory;
+    private readonly IEnumerable<INodeRoleBehaviourService> _nodeRoleBehaviourServices;
     private readonly ILogger<RaftNodeHostedService> _logger;
 
-    public RaftNodeHostedService(SimpleClusterInfoService clusterService, GrpcClientFactory grpcClientFactory, ILogger<RaftNodeHostedService> logger)
+    public RaftNodeHostedService(RaftModule raftModule, IClusterInfoService clusterService, GrpcClientFactory grpcClientFactory, IEnumerable<INodeRoleBehaviourService> nodeRoleBehaviourServices, ILogger<RaftNodeHostedService> logger)
     {
+        _raftModule = raftModule;
         _clusterService = clusterService;
         _grpcClientFactory = grpcClientFactory;
+        _nodeRoleBehaviourServices = nodeRoleBehaviourServices;
         _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await DiscoverClusterNodesAsync();
+
+        await _raftModule.StartAsync(stoppingToken);
     }
 
     private async Task DiscoverClusterNodesAsync()

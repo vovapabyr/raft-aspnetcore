@@ -1,3 +1,4 @@
+using RaftCore;
 using RaftCore.Services;
 using RaftNode.Extensions;
 using RaftNode.Options;
@@ -12,7 +13,10 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddSingleton<IClusterInfoService, SimpleClusterInfoService>();
-builder.Services.AddSingleton<SimpleClusterInfoService>();
+builder.Services.AddSingleton<RaftModule>();
+builder.Services.AddSingleton<INodeRoleBehaviourService, FollowerBehaviourService>();
+builder.Services.AddSingleton<INodeRoleBehaviourService, CandidateBehaviourService>();
+builder.Services.AddSingleton<INodeRoleBehaviourService, LeaderBehaviourService>();
 builder.Services.Configure<ClusterInfoOptions>(builder.Configuration.GetSection(ClusterInfoOptions.Key));
 builder.Services.AddGrpc();
 builder.Services.ConfigureGrpcClients(builder.Configuration);

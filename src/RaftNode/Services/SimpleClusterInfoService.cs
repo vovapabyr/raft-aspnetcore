@@ -16,13 +16,19 @@ public class SimpleClusterInfoService : IClusterInfoService
     public SimpleClusterInfoService(IOptions<ClusterInfoOptions> clusterInfoOptions, ILogger<SimpleClusterInfoService> logger)
     {
         _clusterInfoOptions = clusterInfoOptions.Value;
+        VoteTimeoutMinValue = _clusterInfoOptions.VoteTimeoutMinValue;
+        VoteTimeoutMaxValue = _clusterInfoOptions.VoteTimeoutMaxValue;
         _logger = logger;
     }
 
     public NodeInfo CurrentNode { get; private set; }
      
     // Need to lock?
-    public List<NodeInfo> ClusterNodes { get; } = new List<NodeInfo>(); 
+    public List<NodeInfo> ClusterNodes { get; } = new List<NodeInfo>();
+
+    public int VoteTimeoutMinValue { get; private set; }
+
+    public int VoteTimeoutMaxValue { get; private set; }
 
     public async Task ResolveNodesDnsAsync()
     {
