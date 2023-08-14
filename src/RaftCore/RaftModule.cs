@@ -6,38 +6,16 @@ using RaftCore.Services;
 
 namespace RaftCore;
 public class RaftModule
-{
-    // TODO Check against docs.
-    #region Raft persisted
-
-    private int _currentTerm = 0;
-
-    private string? _votedFor = null;
-
-    private IList<ICommand> _log = new List<ICommand>();
-
-    private long _commitLength = 0;
-
-    #endregion
-
-    // TODO Check against docs.
-    #region Raft not-persisted
-
+{ 
     private NodeRole _currentRole = NodeRole.Follower;
 
-    private string? _currentLeader = null;
-
-    private HashSet<string> _votesReceived = new HashSet<string>();
-
-    #endregion
+    private INodeRoleBehaviourService _currentBehavior; 
 
     private NodeInfo _currentNode;
 
     private Dictionary<string, NodeInfo> _nodes;
 
     private readonly Dictionary<NodeRole, INodeRoleBehaviourService> _behavioursServices;
-
-    private INodeRoleBehaviourService _currentBehavior; 
     
     private readonly ILogger<RaftModule> _logger;
 
@@ -67,7 +45,7 @@ public class RaftModule
         if (_clusterDescriptionService.ClusterNodes == null) 
             throw new ArgumentNullException(nameof(_clusterDescriptionService.ClusterNodes));
         // Throw on number of nodes?
-        _nodes = _clusterDescriptionService.ClusterNodes.ToDictionary(n => n.IPAddress.ToString(), n => n);
+        _nodes = _clusterDescriptionService.ClusterNodes.ToDictionary(n => n.NodeId, n => n);
 
         SwitchToBehaviour(_currentRole);
 

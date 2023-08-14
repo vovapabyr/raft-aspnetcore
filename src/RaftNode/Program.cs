@@ -17,6 +17,7 @@ builder.Services.AddSingleton<RaftModule>();
 builder.Services.AddSingleton<INodeRoleBehaviourService, FollowerBehaviourService>();
 builder.Services.AddSingleton<INodeRoleBehaviourService, CandidateBehaviourService>();
 builder.Services.AddSingleton<INodeRoleBehaviourService, LeaderBehaviourService>();
+builder.Services.AddSingleton<NodeStateService>();
 builder.Services.Configure<ClusterInfoOptions>(builder.Configuration.GetSection(ClusterInfoOptions.Key));
 builder.Services.AddGrpc();
 builder.Services.ConfigureGrpcClients(builder.Configuration);

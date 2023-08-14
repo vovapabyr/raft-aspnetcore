@@ -10,12 +10,17 @@ public class CandidateBehaviourService : INodeRoleBehaviourService
 
     int _voteTimeoutMaxValue { get; }
 
+    private readonly NodeInfo _currentNode;
+    private readonly NodeStateService _nodeStateService;
+    
     private readonly ILogger<CandidateBehaviourService> _logger;
 
-    public CandidateBehaviourService(IClusterInfoService clusterInfoService, ILogger<CandidateBehaviourService> logger)
+    public CandidateBehaviourService(IClusterInfoService clusterInfoService, NodeStateService nodeStateService, ILogger<CandidateBehaviourService> logger)
     {
         _voteTimeoutMinValue = clusterInfoService.VoteTimeoutMinValue;
         _voteTimeoutMaxValue = clusterInfoService.VoteTimeoutMaxValue;
+        _currentNode = clusterInfoService.CurrentNode;
+        _nodeStateService = nodeStateService;
         _logger = logger;
     }
 
@@ -37,6 +42,14 @@ public class CandidateBehaviourService : INodeRoleBehaviourService
 
     public void SendVoteRequests(object? sender, ElapsedEventArgs e)
     {
-        _logger.LogInformation("Sending Vote request!");
+        _logger.LogInformation("Sending Vote requests.");
+
+        // Should we do it in a lock?
+        _nodeStateService.IncrementTerm();
+        _nodeStateService.Vote(_currentNode.NodeId);
+
+        var (lastLogIndedx, lastLogTerm) = _nodeStateService.GetLastLogInfo();
+
+        // SEND VOTE REQUESTS.
     }
 }
