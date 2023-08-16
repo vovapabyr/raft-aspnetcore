@@ -75,6 +75,9 @@ public class NodeStateService
         _logLock.Wait();
 
         var lastLogIndedx = _log.Count - 1;
+        if (lastLogIndedx < 0)
+            return (0, 0);
+
         var lastLogTerm = _log[lastLogIndedx].Term;
 
         _logLock.Release();

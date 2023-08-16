@@ -21,10 +21,13 @@ public class RaftModule
 
     private readonly IClusterInfoService _clusterDescriptionService;
 
-    public RaftModule(IClusterInfoService clusterDescriptionService, IEnumerable<INodeRoleBehaviourService> behavioursServices, ILogger<RaftModule> logger)
+    private readonly NodeStateService _nodeStateService;
+
+    public RaftModule(IClusterInfoService clusterDescriptionService, NodeStateService nodeStateService, IEnumerable<INodeRoleBehaviourService> behavioursServices, ILogger<RaftModule> logger)
     {
         _logger = logger;
         _clusterDescriptionService = clusterDescriptionService;
+        _nodeStateService = nodeStateService;
 
         if (behavioursServices == null) 
             throw new ArgumentNullException(nameof(behavioursServices));
@@ -52,10 +55,40 @@ public class RaftModule
         return Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
     }
 
+    public Task<VoteResponse> ProcessVoteRequestAsync(VoteRequest voteRequest)
+    {
+        TryUpdateTerm(voteRequest.Term);
+
+        var (lastLogIndedx, lastLogTerm) = _nodeStateService.GetLastLogInfo();
+        var logOk = voteRequest.LastLogTerm > lastLogTerm || (voteRequest.LastLogTerm == lastLogTerm && voteRequest.LastLogIndex >= lastLogIndedx);
+
+        if (voteRequest.Term == _nodeStateService.CurrentTerm && logOk && (_nodeStateService.VotedFor == null || _nodeStateService.VotedFor == voteRequest.CandidateId))
+        {
+            _nodeStateService.Vote(voteRequest.CandidateId);
+            return Task.FromResult(new VoteResponse(){ Term = _nodeStateService.CurrentTerm, VoteGranted = true});
+        }
+        else
+            return Task.FromResult(new VoteResponse(){ Term = _nodeStateService.CurrentTerm, VoteGranted = false});
+    }
+
     public void SwitchToBehaviour(NodeRole nodeRole) 
     {
         _logger.LogInformation($"NODE: { _currentNode }. Switching node to '{ nodeRole }'.");
+        // Need to switch with lock?
         _currentBehavior = _behavioursServices[nodeRole];
         _currentBehavior.Select();        
+    }
+
+    private bool TryUpdateTerm(int term)
+    {
+        if (term > _nodeStateService.CurrentTerm)
+        {
+            _nodeStateService.CurrentTerm = term;
+            _nodeStateService.Vote(null);
+            SwitchToBehaviour(NodeRole.Follower);
+            return true;
+        }
+
+        return false;
     }
 }

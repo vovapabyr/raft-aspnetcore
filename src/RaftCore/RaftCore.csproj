@@ -7,6 +7,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Protobuf Include="Protos\raft.proto" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <PackageReference Include="Grpc.AspNetCore" Version="2.40.0" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="7.0.0" />
   </ItemGroup>
 
