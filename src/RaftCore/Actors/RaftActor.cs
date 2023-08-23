@@ -11,27 +11,25 @@ public class RaftActor : FSM<NodeRole, NodeStateService>
     private const string VoteTimerName = "vote_timer";
     private const string AppendEntriesTimerName = "append_entries_timer";
 
+    private readonly IActorRef _raftMessagingActorRef;
     private readonly ILoggingAdapter _logger = Context.GetLogger();
     private readonly int _voteTimeoutMinValue;
     private readonly int _voteTimeoutMaxValue;
     private readonly int _appendEntriesTimeoutMinValue;
     private readonly int _appendEntriesTimeoutMaxValue;
     private readonly NodeInfo _currentNode;
-    private readonly List<NodeInfo> _clusterNodes;
-    private readonly GrpcClientFactory _grpcClientFactory;
     private readonly int _majority;
 
     public RaftActor(IClusterInfoService clusterInfoService, NodeStateService nodeStateService, GrpcClientFactory grpcClientFactory)
     {
-        clusterInfoService.ResolveNodesDnsAsync().Wait();
+        _raftMessagingActorRef = Context.ActorOf(MessageBroadcastActor.Props(clusterInfoService, grpcClientFactory), "raft-message-broadcast-actor");
         _voteTimeoutMinValue = clusterInfoService.VoteTimeoutMinValue;
         _voteTimeoutMaxValue = clusterInfoService.VoteTimeoutMaxValue;
         _appendEntriesTimeoutMinValue = clusterInfoService.AppendEntriesTimeoutMinValue;
         _appendEntriesTimeoutMaxValue = clusterInfoService.AppendEntriesTimeoutMaxValue;
         _currentNode = clusterInfoService.CurrentNode;
-        _clusterNodes = clusterInfoService.ClusterNodes;
-        _grpcClientFactory = grpcClientFactory;
         _majority = (int)Math.Ceiling((clusterInfoService.ClusterNodes.Count + 1) / (double)2);
+        _logger.Info("STARTING RAFT ACTOR INITILIZATION.");
 
         StartWith(NodeRole.Follower, nodeStateService);
         SetVoteTimer();
@@ -58,11 +56,7 @@ public class RaftActor : FSM<NodeRole, NodeStateService>
                 StateData.AddVote(_currentNode.NodeId);
                 SetVoteTimer();
                 var (lastLogIndedx, lastLogTerm) = StateData.GetLastLogInfo();
-                foreach (var nodeClient in GetNodesClients())
-                {
-                    LogInformation($"Requesting vote from '{ nodeClient.Item1 }'.");
-                    nodeClient.Item2.SendVoteRequest(new VoteRequest() { Term = StateData.CurrentTerm, CandidateId = _currentNode.NodeId, LastLogIndex = lastLogIndedx, LastLogTerm = lastLogTerm });
-                }
+                _raftMessagingActorRef.Tell(new VoteRequest() { Term = StateData.CurrentTerm, CandidateId = _currentNode.NodeId, LastLogIndex = lastLogIndedx, LastLogTerm = lastLogTerm });
                 LogInformation("Finished requesting votes.");
                 return Stay();  
             }
@@ -109,11 +103,7 @@ public class RaftActor : FSM<NodeRole, NodeStateService>
             {
                 LogDebug($"Sending append entries request to nodes.");
                 SetAppendEntriesTimer();
-                foreach (var nodeClient in GetNodesClients())
-                {
-                    LogDebug($"Sending append entries request to '{ nodeClient.Item1 }'.");
-                    nodeClient.Item2.SendAppendEntriesRequest(new AppendEntriesRequest() { Term = StateData.CurrentTerm, LeaderId = _currentNode.NodeId });
-                }                
+                _raftMessagingActorRef.Tell(new AppendEntriesRequest() { Term = StateData.CurrentTerm, LeaderId = _currentNode.NodeId });             
                 return Stay();
             }
 
@@ -162,9 +152,6 @@ public class RaftActor : FSM<NodeRole, NodeStateService>
                 var logOk = voteRequest.LastLogTerm > lastLogTerm || (voteRequest.LastLogTerm == lastLogTerm && voteRequest.LastLogIndex >= lastLogIndedx);
                 var canVoteForCandidate = StateData.CanVoteFor(voteRequest.CandidateId);
                 LogInformation($"'{ voteRequest.CandidateId }' asks for a vote in the term '{ voteRequest.Term }'. IsLogOk: { logOk }. CanVote: { canVoteForCandidate }.");
-
-                var node = _clusterNodes.FirstOrDefault(n => n.NodeId == voteRequest.CandidateId);
-                var client = grpcClientFactory.CreateClient<RaftMessagingService.RaftMessagingServiceClient>(node.HostName);
                 if (voteRequest.Term == StateData.CurrentTerm && logOk && canVoteForCandidate)
                 {   
                     // Only the follower can vote.
@@ -174,15 +161,15 @@ public class RaftActor : FSM<NodeRole, NodeStateService>
                     LogInformation($"Voting for candidate '{ voteRequest.CandidateId }' in term '{ voteRequest.Term }'."); 
                     StateData.Vote(voteRequest.CandidateId);
                     SetVoteTimer();
-                    client.SendVoteResponse(new VoteResponse() { Term = voteRequest.Term, NodeId = _currentNode.NodeId,  VoteGranted = true });
+                    _raftMessagingActorRef.Tell((voteRequest, new VoteResponse() { Term = voteRequest.Term, NodeId = _currentNode.NodeId,  VoteGranted = true }));
                     return Stay();
                 }
                 else
                 {
                     // Candidate and leader nodes couldn't grant vote in the current term for other node as they have definitely already voted for itself in the current term.
                     // Decline any request with the term less than current term.
-                     LogInformation($"Declining vote request from candidate '{ voteRequest.CandidateId }' in term '{ voteRequest.Term }'."); 
-                    client.SendVoteResponse(new VoteResponse() { Term = voteRequest.Term, NodeId = _currentNode.NodeId, VoteGranted = false }); 
+                     LogInformation($"Declining vote request from candidate '{ voteRequest.CandidateId }' in term '{ voteRequest.Term }'.");
+                     _raftMessagingActorRef.Tell((voteRequest, new VoteResponse() { Term = voteRequest.Term, NodeId = _currentNode.NodeId,  VoteGranted = false })); 
                     return Stay();
                 }
                     
@@ -193,9 +180,7 @@ public class RaftActor : FSM<NodeRole, NodeStateService>
                 LogDebug($"Got append entries request from leader '{ appendEntriesRequest.LeaderId }' with term '{ appendEntriesRequest.Term }'.");
                 SetVoteTimer();
                 StateData.CurrentLeader = appendEntriesRequest.LeaderId;
-                var node = _clusterNodes.FirstOrDefault(n => n.NodeId == appendEntriesRequest.LeaderId);
-                var client = grpcClientFactory.CreateClient<RaftMessagingService.RaftMessagingServiceClient>(node.HostName);
-                client.SendAppendEntriesResponse(new AppendEntriesResponse(){ Term = StateData.CurrentTerm, NodeId = _currentNode.NodeId, Success = true });
+                _raftMessagingActorRef.Tell((appendEntriesRequest, new AppendEntriesResponse(){ Term = StateData.CurrentTerm, NodeId = _currentNode.NodeId, Success = true }));
                 return GoTo(NodeRole.Follower);
             }
 
@@ -204,6 +189,13 @@ public class RaftActor : FSM<NodeRole, NodeStateService>
         });
 
         Initialize();
+        _logger.Info("RAFT ACTOR INITILIZATION FINISHED.");
+    }
+
+    protected override void PreStart()
+    {
+        _logger.Info("STARTING RAFT ACTOR!!!");
+        base.PreStart();
     }
 
     private TimeSpan CalculateNextVoteTimeout()
@@ -225,14 +217,6 @@ public class RaftActor : FSM<NodeRole, NodeStateService>
     private void SetVoteTimer() => SetTimer(VoteTimerName, StateTimeout.Instance, CalculateNextVoteTimeout(), repeat: false);
 
     private void SetAppendEntriesTimer() => SetTimer(AppendEntriesTimerName, StateTimeout.Instance, CalculateNextAppendEntriesTimeout(), repeat: false);
-
-    private IEnumerable<(string, RaftMessagingService.RaftMessagingServiceClient)> GetNodesClients()
-    {
-        foreach (var node in _clusterNodes)
-        {
-            yield return (node.HostName, _grpcClientFactory.CreateClient<RaftMessagingService.RaftMessagingServiceClient>(node.HostName));
-        }
-    }
 
     private void LogDebug(string? message = null) => _logger.Debug(FormaLogMessage(message));
 

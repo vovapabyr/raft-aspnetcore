@@ -21,6 +21,7 @@ public class SimpleClusterInfoService : IClusterInfoService
         AppendEntriesTimeoutMinValue = _clusterInfoOptions.AppendEntriesTimeoutMinValue;
         AppendEntriesTimeoutMaxValue = _clusterInfoOptions.AppendEntriesTimeoutMaxValue;
         _logger = logger;
+        ResolveNodesDnsAsync().Wait();
     }
 
     public NodeInfo CurrentNode { get; private set; }
