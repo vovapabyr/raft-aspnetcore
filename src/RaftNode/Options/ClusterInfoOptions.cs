@@ -15,6 +15,10 @@ public class ClusterInfoOptions
 
     public int VoteTimeoutMaxValue { get; set; }
 
+    public int AppendEntriesTimeoutMinValue { get; set; }
+
+    public int AppendEntriesTimeoutMaxValue { get; set; }
+
     public string GetNodeName(int index) => $"{ NodeNamePrefix }-{ index }";
 
     public IEnumerable<string> GetNodesNames()

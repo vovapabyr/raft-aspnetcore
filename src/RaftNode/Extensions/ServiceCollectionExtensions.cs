@@ -1,4 +1,5 @@
 using System.Net;
+using RaftCore;
 using RaftNode.Options;
 using static RaftNode.DiscoveryService;
 
@@ -11,7 +12,15 @@ internal static class ServiceCollectionExtensions
             var clusterInfoOptions = configuration.GetSection(ClusterInfoOptions.Key).Get<ClusterInfoOptions>();
             foreach (var nodeName in clusterInfoOptions.GetNodesNames())
             {
-                services.AddGrpcClient<DiscoveryServiceClient>(nodeName, o =>
+                // services.AddGrpcClient<DiscoveryServiceClient>(nodeName, o =>
+                // {
+                //     o.Address = new Uri($"https://{ nodeName }:443"); 
+                // }).ConfigureChannel(c =>
+                // {
+                //     c.HttpHandler = new HttpClientHandler() { ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator };
+                // });
+
+                services.AddGrpcClient<RaftMessagingService.RaftMessagingServiceClient>(nodeName, o =>
                 {
                     o.Address = new Uri($"https://{ nodeName }:443"); 
                 }).ConfigureChannel(c =>

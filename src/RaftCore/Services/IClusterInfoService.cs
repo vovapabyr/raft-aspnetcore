@@ -12,5 +12,9 @@ public interface IClusterInfoService
 
     int VoteTimeoutMaxValue { get; }
 
+    int AppendEntriesTimeoutMinValue { get; }
+
+    int AppendEntriesTimeoutMaxValue { get; }
+
     Task ResolveNodesDnsAsync();
 }

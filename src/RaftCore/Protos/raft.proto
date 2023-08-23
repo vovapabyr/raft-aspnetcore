@@ -2,8 +2,13 @@ syntax = "proto3";
 
 option csharp_namespace = "RaftCore";
 
+import "google/protobuf/empty.proto";
+
 service RaftMessagingService {
-  rpc Vote (VoteRequest) returns (VoteResponse);
+  rpc SendVoteRequest (VoteRequest) returns (google.protobuf.Empty);
+  rpc SendVoteResponse (VoteResponse) returns (google.protobuf.Empty);
+  rpc SendAppendEntriesRequest (AppendEntriesRequest) returns (google.protobuf.Empty);
+  rpc SendAppendEntriesResponse (AppendEntriesResponse) returns (google.protobuf.Empty);
 }
 
 message VoteRequest
@@ -17,5 +22,19 @@ message VoteRequest
 message VoteResponse
 {
     int32 term = 1;
-    bool voteGranted = 2;
+    string nodeId = 2;
+    bool voteGranted = 3;
+}
+
+message AppendEntriesRequest
+{
+    int32 term = 1;
+    string leaderId = 2;
+}
+
+message AppendEntriesResponse
+{
+    int32 term = 1;
+    string nodeId = 2;
+    bool success = 3;
 }

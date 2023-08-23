@@ -14,9 +14,9 @@ public class RaftNodeHostedService : BackgroundService
     private readonly IEnumerable<INodeRoleBehaviourService> _nodeRoleBehaviourServices;
     private readonly ILogger<RaftNodeHostedService> _logger;
 
-    public RaftNodeHostedService(RaftModule raftModule, IClusterInfoService clusterService, GrpcClientFactory grpcClientFactory, IEnumerable<INodeRoleBehaviourService> nodeRoleBehaviourServices, ILogger<RaftNodeHostedService> logger)
+    public RaftNodeHostedService(IClusterInfoService clusterService, GrpcClientFactory grpcClientFactory, IEnumerable<INodeRoleBehaviourService> nodeRoleBehaviourServices, ILogger<RaftNodeHostedService> logger)
     {
-        _raftModule = raftModule;
+        //_raftModule = raftModule;
         _clusterService = clusterService;
         _grpcClientFactory = grpcClientFactory;
         _nodeRoleBehaviourServices = nodeRoleBehaviourServices;
@@ -25,9 +25,9 @@ public class RaftNodeHostedService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await DiscoverClusterNodesAsync();
+        //await DiscoverClusterNodesAsync();
 
-        await _raftModule.StartAsync(stoppingToken);
+        //await _raftModule.StartAsync(stoppingToken);
     }
 
     private async Task DiscoverClusterNodesAsync()

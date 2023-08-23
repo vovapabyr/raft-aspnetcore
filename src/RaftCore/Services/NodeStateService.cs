@@ -6,20 +6,14 @@ namespace RaftCore.Services;
 
 public class NodeStateService
 {
-        // TODO Check against docs.
+    // TODO Check against docs.
     #region Raft persisted
 
     private int _currentTerm = 0;
 
-    private SemaphoreSlim _currentTermLock = new SemaphoreSlim(1);
-
     private string? _votedFor = null;
 
-    private SemaphoreSlim _voteLock = new SemaphoreSlim(1);
-
     private IList<LogEntry> _log = new List<LogEntry>();
-
-    private SemaphoreSlim _logLock = new SemaphoreSlim(1);
 
     private long _commitLength = 0;
 
@@ -32,47 +26,42 @@ public class NodeStateService
 
     private HashSet<string> _votesReceived = new HashSet<string>();
 
-    private readonly ILogger<NodeStateService> _logger;
-
     #endregion
-
-    public NodeStateService(ILogger<NodeStateService> logger)
-    {
-        _logger = logger;        
-    }
 
     public int CurrentTerm 
     {
-        get { return _currentTerm; }
-        set 
-        {
-            _currentTermLock.Wait(); 
-            _logger.LogInformation($"Setting current term from '{ _currentTerm }' to '{ value }'.");
-            _currentTerm = value;
-            _currentTermLock.Release(); 
-        }
+        get => _currentTerm;
+        set => _currentTerm = value;
     }
 
     public int IncrementTerm()
     {
-        var incrementedTerm = Interlocked.Increment(ref _currentTerm);
-        _logger.LogInformation($"Current term inremented. Value: '{ incrementedTerm }'.");
-        return incrementedTerm;
+        return ++_currentTerm;
     }
 
     public string? VotedFor => _votedFor;
 
     public void Vote(string? candidateId)
     {
-        _voteLock.Wait();
-        _logger.LogInformation($"Voting for '{ candidateId }'.");
         _votedFor = candidateId;
-        _voteLock.Release();
     } 
+
+    public bool CanVoteFor(string candidateId) => _votedFor == null || _votedFor == candidateId; 
+
+    public bool AddVote(string candidateId) => _votesReceived.Add(candidateId);
+
+    public void ClearVotes() => _votesReceived.Clear();
+
+    public int VotesCount => _votesReceived.Count;
+
+    public string? CurrentLeader 
+    {
+        get => _currentLeader;
+        set => _currentLeader = value;
+    }
 
     public (int, int) GetLastLogInfo()
     {
-        _logLock.Wait();
 
         var lastLogIndedx = _log.Count - 1;
         if (lastLogIndedx < 0)
@@ -80,8 +69,11 @@ public class NodeStateService
 
         var lastLogTerm = _log[lastLogIndedx].Term;
 
-        _logLock.Release();
-
         return (lastLogIndedx, lastLogTerm);
+    }
+
+    public override string ToString()
+    {
+        return $"TERM: '{ CurrentTerm }'. LEADER: '{ CurrentLeader }'. VOTED_FOR: '{ VotedFor }'.";
     }
 }

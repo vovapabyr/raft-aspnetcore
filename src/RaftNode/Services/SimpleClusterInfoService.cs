@@ -18,6 +18,8 @@ public class SimpleClusterInfoService : IClusterInfoService
         _clusterInfoOptions = clusterInfoOptions.Value;
         VoteTimeoutMinValue = _clusterInfoOptions.VoteTimeoutMinValue;
         VoteTimeoutMaxValue = _clusterInfoOptions.VoteTimeoutMaxValue;
+        AppendEntriesTimeoutMinValue = _clusterInfoOptions.AppendEntriesTimeoutMinValue;
+        AppendEntriesTimeoutMaxValue = _clusterInfoOptions.AppendEntriesTimeoutMaxValue;
         _logger = logger;
     }
 
@@ -29,6 +31,10 @@ public class SimpleClusterInfoService : IClusterInfoService
     public int VoteTimeoutMinValue { get; private set; }
 
     public int VoteTimeoutMaxValue { get; private set; }
+
+    public int AppendEntriesTimeoutMinValue { get; private set; }
+
+    public int AppendEntriesTimeoutMaxValue { get; private set; }
 
     public async Task ResolveNodesDnsAsync()
     {
