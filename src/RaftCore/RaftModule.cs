@@ -21,9 +21,9 @@ public class RaftModule
 
     private readonly IClusterInfoService _clusterDescriptionService;
 
-    private readonly NodeStateService _nodeStateService;
+    private readonly NodeState _nodeStateService;
 
-    public RaftModule(IClusterInfoService clusterDescriptionService, NodeStateService nodeStateService, IEnumerable<INodeRoleBehaviourService> behavioursServices, ILogger<RaftModule> logger)
+    public RaftModule(IClusterInfoService clusterDescriptionService, NodeState nodeStateService, IEnumerable<INodeRoleBehaviourService> behavioursServices, ILogger<RaftModule> logger)
     {
         _logger = logger;
         _clusterDescriptionService = clusterDescriptionService;

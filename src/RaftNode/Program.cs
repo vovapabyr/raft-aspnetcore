@@ -18,7 +18,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddSingleton<IClusterInfoService, SimpleClusterInfoService>();
-builder.Services.AddSingleton<NodeStateService>();
+builder.Services.AddSingleton<NodeState>();
 builder.Services.Configure<ClusterInfoOptions>(builder.Configuration.GetSection(ClusterInfoOptions.Key));
 builder.Services.AddGrpc();
 builder.Services.ConfigureGrpcClients(builder.Configuration);

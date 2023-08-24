@@ -11,11 +11,11 @@ public class CandidateBehaviourService : INodeRoleBehaviourService
     int _voteTimeoutMaxValue { get; }
 
     private readonly NodeInfo _currentNode;
-    private readonly NodeStateService _nodeStateService;
+    private readonly NodeState _nodeStateService;
     
     private readonly ILogger<CandidateBehaviourService> _logger;
 
-    public CandidateBehaviourService(IClusterInfoService clusterInfoService, NodeStateService nodeStateService, ILogger<CandidateBehaviourService> logger)
+    public CandidateBehaviourService(IClusterInfoService clusterInfoService, NodeState nodeStateService, ILogger<CandidateBehaviourService> logger)
     {
         _voteTimeoutMinValue = clusterInfoService.VoteTimeoutMinValue;
         _voteTimeoutMaxValue = clusterInfoService.VoteTimeoutMaxValue;

@@ -6,7 +6,7 @@ using RaftCore.Services;
 
 namespace RaftCore.Actors;
 
-public class RaftActor : FSM<NodeRole, NodeStateService>
+public class RaftActor : FSM<NodeRole, NodeState>
 {
     private const string VoteTimerName = "vote_timer";
     private const string AppendEntriesTimerName = "append_entries_timer";
@@ -20,7 +20,7 @@ public class RaftActor : FSM<NodeRole, NodeStateService>
     private readonly NodeInfo _currentNode;
     private readonly int _majority;
 
-    public RaftActor(IClusterInfoService clusterInfoService, NodeStateService nodeStateService, GrpcClientFactory grpcClientFactory)
+    public RaftActor(IClusterInfoService clusterInfoService, NodeState nodeStateService, GrpcClientFactory grpcClientFactory)
     {
         _raftMessagingActorRef = Context.ActorOf(MessageBroadcastActor.Props(clusterInfoService, grpcClientFactory), "raft-message-broadcast-actor");
         _voteTimeoutMinValue = clusterInfoService.VoteTimeoutMinValue;
@@ -31,16 +31,16 @@ public class RaftActor : FSM<NodeRole, NodeStateService>
         _majority = (int)Math.Ceiling((clusterInfoService.ClusterNodes.Count + 1) / (double)2);
         _logger.Info("STARTING RAFT ACTOR INITILIZATION.");
 
-        StartWith(NodeRole.Follower, nodeStateService);
+        StartWith(NodeRole.Follower, new NodeState());
         SetVoteTimer();
 
         When(NodeRole.Follower, state => 
         {
-            if (state.FsmEvent is StateTimeout)
+            if (state.FsmEvent is StateTimeout && state.StateData is NodeState stateDataTimeout)
             {
                 LogInformation($"Vote timer elapsed. Switching to candidate.");
                 // Trigger timeout again to start requesting votes.
-                return GoTo(NodeRole.Candidate).Replying(StateTimeout.Instance);  
+                return GoTo(NodeRole.Candidate).Using(stateDataTimeout.CopyAsCandidate()).Replying(StateTimeout.Instance);  
             }      
 
             return null;
@@ -48,50 +48,50 @@ public class RaftActor : FSM<NodeRole, NodeStateService>
 
         When(NodeRole.Candidate, state => 
         {
-            if (state.FsmEvent is StateTimeout)
+            if (state.FsmEvent is StateTimeout && state.StateData is CandidateNodeState stateDataTimeout)
             {
                 LogInformation("Starting requesting votes.");
-                StateData.IncrementTerm();
-                StateData.Vote(_currentNode.NodeId);
-                StateData.AddVote(_currentNode.NodeId);
+                stateDataTimeout.IncrementTerm();
+                stateDataTimeout.Vote(_currentNode.NodeId);
+                stateDataTimeout.AddVote(_currentNode.NodeId);
                 SetVoteTimer();
-                var (lastLogIndedx, lastLogTerm) = StateData.GetLastLogInfo();
-                _raftMessagingActorRef.Tell(new VoteRequest() { Term = StateData.CurrentTerm, CandidateId = _currentNode.NodeId, LastLogIndex = lastLogIndedx, LastLogTerm = lastLogTerm });
+                var (lastLogIndedx, lastLogTerm) = stateDataTimeout.GetLastLogInfo();
+                _raftMessagingActorRef.Tell(new VoteRequest() { Term = stateDataTimeout.CurrentTerm, CandidateId = _currentNode.NodeId, LastLogIndex = lastLogIndedx, LastLogTerm = lastLogTerm });
                 LogInformation("Finished requesting votes.");
-                return Stay();  
+                return Stay().Using(stateDataTimeout.CopyAsCandidate());  
             }
 
-            if (state.FsmEvent is VoteResponse voteResponse)
+            if (state.FsmEvent is VoteResponse voteResponse && state.StateData is CandidateNodeState stateDataVoteResponse)
             {
                 LogInformation($"Received vote response from '{ voteResponse.NodeId }'. Term: '{ voteResponse.Term }'. Granted: '{ voteResponse.VoteGranted }'.");
-                if (voteResponse.Term > StateData.CurrentTerm)
+                if (voteResponse.Term > stateDataVoteResponse.CurrentTerm)
                 {
                     LogInformation($"Got higher term '{ voteResponse.Term }'. Downgrading to follower.");
-                    StateData.CurrentTerm = voteResponse.Term;
-                    StateData.Vote(null);
+                    stateDataVoteResponse.CurrentTerm = voteResponse.Term;
+                    stateDataVoteResponse.Vote(null);
                     SetVoteTimer();
-                    return GoTo(NodeRole.Follower);
+                    return GoTo(NodeRole.Follower).Using(stateDataVoteResponse.CopyAsBase());
                 }
 
-                if (voteResponse.Term == StateData.CurrentTerm && voteResponse.VoteGranted)
+                if (voteResponse.Term == stateDataVoteResponse.CurrentTerm && voteResponse.VoteGranted)
                 {
-                    StateData.AddVote(voteResponse.NodeId);
-                    LogInformation($"Vote received from '{ voteResponse.NodeId }'. Total votes collected '{ StateData.VotesCount }'.");
-                    if (StateData.VotesCount >= _majority)
+                    stateDataVoteResponse.AddVote(voteResponse.NodeId);
+                    LogInformation($"Vote received from '{ voteResponse.NodeId }'. Total votes collected '{ stateDataVoteResponse.VotesCount }'.");
+                    if (stateDataVoteResponse.VotesCount >= _majority)
                     {
                         CancelTimer(VoteTimerName);
-                        StateData.CurrentLeader = _currentNode.NodeId;
+                        stateDataVoteResponse.CurrentLeader = _currentNode.NodeId;
 
                         // Reset ack.
                         // Reset sendLengh.
                         // Replicate log.
                         LogInformation($"Majority votes collected. Becoming leader!");
                         Self.Tell(StateTimeout.Instance);
-                        return GoTo(NodeRole.Leader);
+                        return GoTo(NodeRole.Leader).Using(stateDataVoteResponse.CopyAsBase());
                     }
                 }
 
-                return Stay();
+                return Stay().Using(stateDataVoteResponse.CopyAsCandidate());
             }      
 
             return null;
@@ -99,27 +99,27 @@ public class RaftActor : FSM<NodeRole, NodeStateService>
 
         When(NodeRole.Leader, (state) =>
         {
-            if (state.FsmEvent is StateTimeout)
+            if (state.FsmEvent is StateTimeout && state.StateData is NodeState stateDataTimeout)
             {
                 LogDebug($"Sending append entries request to nodes.");
                 SetAppendEntriesTimer();
-                _raftMessagingActorRef.Tell(new AppendEntriesRequest() { Term = StateData.CurrentTerm, LeaderId = _currentNode.NodeId });             
-                return Stay();
+                _raftMessagingActorRef.Tell(new AppendEntriesRequest() { Term = stateDataTimeout.CurrentTerm, LeaderId = _currentNode.NodeId });             
+                return Stay().Using(stateDataTimeout.CopyAsBase());
             }
 
-            if (state.FsmEvent is AppendEntriesResponse appendEntriesResponse)
+            if (state.FsmEvent is AppendEntriesResponse appendEntriesResponse && state.StateData is NodeState stateDataAppendResponse)
             {
                 LogDebug($"Received append entries response from '{ appendEntriesResponse.NodeId }'. Term: '{ appendEntriesResponse.Term }'. Success: '{ appendEntriesResponse.Success }'.");
-                if (appendEntriesResponse.Term > StateData.CurrentTerm)
+                if (appendEntriesResponse.Term > stateDataAppendResponse.CurrentTerm)
                 {
                     LogInformation($"Got higher term '{ appendEntriesResponse.Term }'. Downgrading to follower.");
-                    StateData.CurrentTerm = appendEntriesResponse.Term;
-                    StateData.Vote(null);
+                    stateDataAppendResponse.CurrentTerm = appendEntriesResponse.Term;
+                    stateDataAppendResponse.Vote(null);
                     SetVoteTimer();
-                    return GoTo(NodeRole.Follower);
+                    return GoTo(NodeRole.Follower).Using(stateDataAppendResponse.CopyAsBase());
                 }
 
-                return Stay();
+                return Stay().Using(stateDataAppendResponse.CopyAsBase());
             }
 
             return null;
@@ -127,42 +127,41 @@ public class RaftActor : FSM<NodeRole, NodeStateService>
 
         WhenUnhandled(state => 
         {
-            if (state.FsmEvent is VoteRequest newTermVoteRequest && newTermVoteRequest.Term > StateData.CurrentTerm)
+            if (state.FsmEvent is VoteRequest newTermVoteRequest && state.StateData is NodeState newTermStateDataVoteRequest && newTermVoteRequest.Term > newTermStateDataVoteRequest.CurrentTerm)
             {
                 LogInformation($"Got higher term '{ newTermVoteRequest.Term }' from '{ newTermVoteRequest.CandidateId }' on vote request. Downgrading to follower.");
-                StateData.CurrentTerm = newTermVoteRequest.Term;
+                newTermStateDataVoteRequest.CurrentTerm = newTermVoteRequest.Term;
+                newTermStateDataVoteRequest.Vote(null);
                 Self.Tell(state.FsmEvent);
-                return GoTo(NodeRole.Follower);
+                return GoTo(NodeRole.Follower).Using(newTermStateDataVoteRequest.CopyAsBase());
             }
 
-            if (state.FsmEvent is AppendEntriesRequest newTermAppendEntriesRequest && newTermAppendEntriesRequest.Term > StateData.CurrentTerm)
+            if (state.FsmEvent is AppendEntriesRequest newTermAppendEntriesRequest && state.StateData is NodeState newTermstateDataAppendRequest && newTermAppendEntriesRequest.Term > newTermstateDataAppendRequest.CurrentTerm)
             {
                 LogInformation($"Got higher term '{ newTermAppendEntriesRequest.Term }' from leader '{ newTermAppendEntriesRequest.LeaderId }' on append entries request. Downgrading to follower.");
-                StateData.CurrentTerm = newTermAppendEntriesRequest.Term;
-                // ???
-                StateData.Vote(null);
-                StateData.ClearVotes();
+                newTermstateDataAppendRequest.CurrentTerm = newTermAppendEntriesRequest.Term;
+                newTermstateDataAppendRequest.Vote(null);
                 Self.Tell(state.FsmEvent);
-                return GoTo(NodeRole.Follower);
+                return GoTo(NodeRole.Follower).Using(newTermstateDataAppendRequest.CopyAsBase());
             }
 
-            if (state.FsmEvent is VoteRequest voteRequest)
+            if (state.FsmEvent is VoteRequest voteRequest && state.StateData is NodeState stateDataVoteRequest)
             {   
-                var (lastLogIndedx, lastLogTerm) = StateData.GetLastLogInfo();
+                var (lastLogIndedx, lastLogTerm) = stateDataVoteRequest.GetLastLogInfo();
                 var logOk = voteRequest.LastLogTerm > lastLogTerm || (voteRequest.LastLogTerm == lastLogTerm && voteRequest.LastLogIndex >= lastLogIndedx);
-                var canVoteForCandidate = StateData.CanVoteFor(voteRequest.CandidateId);
+                var canVoteForCandidate = stateDataVoteRequest.CanVoteFor(voteRequest.CandidateId);
                 LogInformation($"'{ voteRequest.CandidateId }' asks for a vote in the term '{ voteRequest.Term }'. IsLogOk: { logOk }. CanVote: { canVoteForCandidate }.");
-                if (voteRequest.Term == StateData.CurrentTerm && logOk && canVoteForCandidate)
+                if (voteRequest.Term == stateDataVoteRequest.CurrentTerm && logOk && canVoteForCandidate)
                 {   
                     // Only the follower can vote.
                     // Vote for node only if its log is up to date.
                     // Vote for node only in the same term.
                     // Can vote only if it's the same node that follower has already voted in the current term or follower hasn't voted yet.
                     LogInformation($"Voting for candidate '{ voteRequest.CandidateId }' in term '{ voteRequest.Term }'."); 
-                    StateData.Vote(voteRequest.CandidateId);
+                    stateDataVoteRequest.Vote(voteRequest.CandidateId);
                     SetVoteTimer();
-                    _raftMessagingActorRef.Tell((voteRequest, new VoteResponse() { Term = voteRequest.Term, NodeId = _currentNode.NodeId,  VoteGranted = true }));
-                    return Stay();
+                    _raftMessagingActorRef.Tell((voteRequest, new VoteResponse() { Term = voteRequest.Term, NodeId = _currentNode.NodeId, VoteGranted = true }));
+                    return Stay().Using(stateDataVoteRequest.Copy());
                 }
                 else
                 {
@@ -170,18 +169,18 @@ public class RaftActor : FSM<NodeRole, NodeStateService>
                     // Decline any request with the term less than current term.
                      LogInformation($"Declining vote request from candidate '{ voteRequest.CandidateId }' in term '{ voteRequest.Term }'.");
                      _raftMessagingActorRef.Tell((voteRequest, new VoteResponse() { Term = voteRequest.Term, NodeId = _currentNode.NodeId,  VoteGranted = false })); 
-                    return Stay();
+                    return Stay().Using(stateDataVoteRequest.Copy());
                 }
                     
             }
             
-            if (state.FsmEvent is AppendEntriesRequest appendEntriesRequest)
+            if (state.FsmEvent is AppendEntriesRequest appendEntriesRequest && state.StateData is NodeState stateDataAppendRequest)
             {
                 LogDebug($"Got append entries request from leader '{ appendEntriesRequest.LeaderId }' with term '{ appendEntriesRequest.Term }'.");
                 SetVoteTimer();
-                StateData.CurrentLeader = appendEntriesRequest.LeaderId;
-                _raftMessagingActorRef.Tell((appendEntriesRequest, new AppendEntriesResponse(){ Term = StateData.CurrentTerm, NodeId = _currentNode.NodeId, Success = true }));
-                return GoTo(NodeRole.Follower);
+                stateDataAppendRequest.CurrentLeader = appendEntriesRequest.LeaderId;
+                _raftMessagingActorRef.Tell((appendEntriesRequest, new AppendEntriesResponse(){ Term = stateDataAppendRequest.CurrentTerm, NodeId = _currentNode.NodeId, Success = true }));
+                return GoTo(NodeRole.Follower).Using(stateDataAppendRequest.Copy());
             }
 
             LogWarning($"Actor couldn't handle the message: '{ state.FsmEvent }'. Type: { state.FsmEvent.GetType() }.");

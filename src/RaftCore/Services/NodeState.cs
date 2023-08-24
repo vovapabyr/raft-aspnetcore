@@ -1,32 +1,42 @@
+using System.Drawing;
 using Microsoft.Extensions.Logging;
 using RaftCore.Commands;
 using RaftCore.Common;
 
 namespace RaftCore.Services;
 
-public class NodeStateService
+public class NodeState
 {
     // TODO Check against docs.
     #region Raft persisted
 
-    private int _currentTerm = 0;
+    protected int _currentTerm = 0;
 
-    private string? _votedFor = null;
+    protected string? _votedFor = null;
 
-    private IList<LogEntry> _log = new List<LogEntry>();
+    protected IList<LogEntry> _log = new List<LogEntry>();
 
-    private long _commitLength = 0;
+    protected long _commitLength = 0;
 
     #endregion
 
     // TODO Check against docs.
     #region Raft not-persisted
 
-    private string? _currentLeader = null;
-
-    private HashSet<string> _votesReceived = new HashSet<string>();
+    protected string? _currentLeader = null;
 
     #endregion
+
+    public NodeState() {}
+
+    public NodeState(int currentTerm, string? votedFor, IList<LogEntry> log, long commitLength, string? currentLeader)
+    {
+        _currentTerm = currentTerm;
+        _votedFor = votedFor;
+        _log = log;
+        _commitLength = commitLength;
+        _currentLeader = currentLeader;
+    }
 
     public int CurrentTerm 
     {
@@ -48,17 +58,15 @@ public class NodeStateService
 
     public bool CanVoteFor(string candidateId) => _votedFor == null || _votedFor == candidateId; 
 
-    public bool AddVote(string candidateId) => _votesReceived.Add(candidateId);
-
-    public void ClearVotes() => _votesReceived.Clear();
-
-    public int VotesCount => _votesReceived.Count;
-
     public string? CurrentLeader 
     {
         get => _currentLeader;
         set => _currentLeader = value;
     }
+
+    public IList<LogEntry> Log => _log;
+
+    public long CommitLength => _commitLength;
 
     public (int, int) GetLastLogInfo()
     {
@@ -71,6 +79,12 @@ public class NodeStateService
 
         return (lastLogIndedx, lastLogTerm);
     }
+
+    public virtual NodeState Copy() => new NodeState(_currentTerm, _votedFor, new List<LogEntry>(_log), _commitLength, _currentLeader);
+
+    public virtual NodeState CopyAsBase() => new NodeState(_currentTerm, _votedFor, new List<LogEntry>(_log), _commitLength, _currentLeader);
+
+    public virtual CandidateNodeState CopyAsCandidate() => new CandidateNodeState(_currentTerm, _votedFor, new List<LogEntry>(_log), _commitLength, _currentLeader, new HashSet<string>()); 
 
     public override string ToString()
     {
