@@ -10,18 +10,18 @@ public class MessageBroadcastActor : ReceiveActor
 {
     private readonly ILoggingAdapter _logger = Context.GetLogger();
     private readonly List<NodeInfo> _clusterNodes;
-    private readonly List<string> _clientsIds = new List<string>();
+    private readonly List<string> _nodesIds = new List<string>();
 
     public MessageBroadcastActor(IClusterInfoService clusterInfoService, GrpcClientFactory grpcClientFactory)
     {
         _clusterNodes = clusterInfoService.ClusterNodes;
-        _clientsIds = _clusterNodes.Select(x => x.NodeId).ToList();
+        _nodesIds = _clusterNodes.Select(x => x.NodeId).ToList();
 
         Receive<VoteRequest>(voteRequest => {
             _logger.Debug($"Broadcasting vote request from '{ voteRequest.CandidateId }' with term '{ voteRequest.Term }'.");
-            foreach (var clientId in _clientsIds)
-                Context.ActorOf(MessageDispatcherActor.Props(clusterInfoService, grpcClientFactory), $"vote-request-{ voteRequest.CandidateId }-{ clientId }-{ voteRequest.Term }-{ Guid.NewGuid() }")
-                    .Tell((clientId, voteRequest));
+            foreach (var nodeId in _nodesIds)
+                Context.ActorOf(MessageDispatcherActor.Props(clusterInfoService, grpcClientFactory), $"vote-request-{ voteRequest.CandidateId }-{ nodeId }-{ voteRequest.Term }-{ Guid.NewGuid() }")
+                    .Tell((nodeId, voteRequest));
         });
 
         Receive<(VoteRequest, VoteResponse)>(message => {
@@ -30,11 +30,23 @@ public class MessageBroadcastActor : ReceiveActor
                 .Tell(message);
         });
 
-        Receive<AppendEntriesRequest>(appendEntriesRequest => {
-            _logger.Debug($"Broadcasting append entries request from leader '{ appendEntriesRequest.LeaderId }' with term '{ appendEntriesRequest.Term }'.");
-            foreach (var clientId in _clientsIds)
-                Context.ActorOf(MessageDispatcherActor.Props(clusterInfoService, grpcClientFactory), $"append-entries-request-{ appendEntriesRequest.LeaderId }-{ clientId }-{ appendEntriesRequest.Term }-{ Guid.NewGuid() }")
-                    .Tell((clientId, appendEntriesRequest));
+        Receive<(LeaderNodeState, string, string)>(appendEntriesRequest => {
+            var (leaderNodeState, leaderId, nodeId) = appendEntriesRequest;
+            _logger.Debug($"Retrying append entries request from leader '{ leaderId }' to node '{ nodeId }' with term '{ leaderNodeState.CurrentTerm }'.");
+            var (prevLogIndex, prevLogTerm) = leaderNodeState.GetNodeNextInfo(nodeId);
+            Context.ActorOf(MessageDispatcherActor.Props(clusterInfoService, grpcClientFactory), $"append-entries-request-{ leaderId }-{ nodeId }-{ leaderNodeState.CurrentTerm }-{ Guid.NewGuid() }")
+                .Tell((nodeId, new AppendEntriesRequest() { Term = leaderNodeState.CurrentTerm, LeaderId = leaderId, PrevLogIndex = prevLogIndex, PrevLogTerm = prevLogTerm, LeaderCommit = leaderNodeState.CommitLength }));
+        });
+
+        Receive<(LeaderNodeState, string)>(appendEntriesRequest => {
+            var (leaderNodeState, leaderId) = appendEntriesRequest;
+            _logger.Debug($"Broadcasting append entries request from leader '{ leaderId }' with term '{ leaderNodeState.CurrentTerm }'.");
+            foreach (var nodeId in _nodesIds)
+            {
+                var (prevLogIndex, prevLogTerm) = leaderNodeState.GetNodeNextInfo(nodeId);
+                Context.ActorOf(MessageDispatcherActor.Props(clusterInfoService, grpcClientFactory), $"append-entries-request-{ leaderId }-{ nodeId }-{ leaderNodeState.CurrentTerm }-{ Guid.NewGuid() }")
+                    .Tell((nodeId, new AppendEntriesRequest() { Term = leaderNodeState.CurrentTerm, LeaderId = leaderId, PrevLogIndex = prevLogIndex, PrevLogTerm = prevLogTerm, LeaderCommit = leaderNodeState.CommitLength }));
+            }
         });
 
         Receive<(AppendEntriesRequest, AppendEntriesResponse)>(message => {

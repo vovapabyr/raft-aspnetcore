@@ -30,11 +30,15 @@ message AppendEntriesRequest
 {
     int32 term = 1;
     string leaderId = 2;
+    int32 prevLogIndex = 3;
+    int32 prevLogTerm = 4;
+    int32 leaderCommit = 5;
 }
 
 message AppendEntriesResponse
 {
     int32 term = 1;
     string nodeId = 2;
-    bool success = 3;
+    int32 matchIndex = 3;
+    bool success = 4;
 }

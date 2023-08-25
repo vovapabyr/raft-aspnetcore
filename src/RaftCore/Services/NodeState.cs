@@ -16,7 +16,7 @@ public class NodeState
 
     protected IList<LogEntry> _log = new List<LogEntry>();
 
-    protected long _commitLength = 0;
+    protected int _commitLength = 0;
 
     #endregion
 
@@ -29,7 +29,7 @@ public class NodeState
 
     public NodeState() {}
 
-    public NodeState(int currentTerm, string? votedFor, IList<LogEntry> log, long commitLength, string? currentLeader)
+    public NodeState(int currentTerm, string? votedFor, IList<LogEntry> log, int commitLength, string? currentLeader)
     {
         _currentTerm = currentTerm;
         _votedFor = votedFor;
@@ -64,9 +64,11 @@ public class NodeState
         set => _currentLeader = value;
     }
 
-    public IList<LogEntry> Log => _log;
+    public int LogCount => _log.Count;
 
-    public long CommitLength => _commitLength;
+    public LogEntry GetLogEntry(int index) => _log[index];
+
+    public int CommitLength => _commitLength;
 
     public (int, int) GetLastLogInfo()
     {
@@ -84,7 +86,9 @@ public class NodeState
 
     public virtual NodeState CopyAsBase() => new NodeState(_currentTerm, _votedFor, new List<LogEntry>(_log), _commitLength, _currentLeader);
 
-    public virtual CandidateNodeState CopyAsCandidate() => new CandidateNodeState(_currentTerm, _votedFor, new List<LogEntry>(_log), _commitLength, _currentLeader, new HashSet<string>()); 
+    public virtual CandidateNodeState CopyAsCandidate() => new CandidateNodeState(_currentTerm, _votedFor, new List<LogEntry>(_log), _commitLength, _currentLeader, new HashSet<string>());
+
+    public virtual LeaderNodeState CopyAsLeader(List<string> nodesIds) => new LeaderNodeState(_currentTerm, _votedFor, new List<LogEntry>(_log), _commitLength, _currentLeader, nodesIds);  
 
     public override string ToString()
     {
