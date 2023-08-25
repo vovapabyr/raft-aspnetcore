@@ -184,7 +184,7 @@ public class RaftActor : FSM<NodeRole, NodeState>
             }
 
             LogWarning($"Actor couldn't handle the message: '{ state.FsmEvent }'. Type: { state.FsmEvent.GetType() }.");
-            return Stay();
+            return Stay().Using(state.StateData.Copy());
         });
 
         Initialize();

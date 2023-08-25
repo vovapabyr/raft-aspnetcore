@@ -14,7 +14,7 @@ public class NodeInfo
 
     public string HostName { get; set; }
 
-    public string NodeId => IPAddress.ToString();
+    public string NodeId => HostName.ToString();
 
     public override string ToString() => $"{{ { HostName }, { IPAddress } }}";
 }
