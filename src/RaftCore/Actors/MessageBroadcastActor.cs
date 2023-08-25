@@ -2,6 +2,7 @@ using Akka.Actor;
 using Akka.Event;
 using Grpc.Net.ClientFactory;
 using RaftCore.Common;
+using RaftCore.Messages;
 using RaftCore.Services;
 
 namespace RaftCore.Actors;
@@ -30,23 +31,19 @@ public class MessageBroadcastActor : ReceiveActor
                 .Tell(message);
         });
 
-        Receive<(LeaderNodeState, string, string)>(appendEntriesRequest => {
-            var (leaderNodeState, leaderId, nodeId) = appendEntriesRequest;
-            _logger.Debug($"Retrying append entries request from leader '{ leaderId }' to node '{ nodeId }' with term '{ leaderNodeState.CurrentTerm }'.");
+        Receive<AppendEntries>(appendEntriesRequest => {
+            var (leaderNodeState, leaderId, nodeId) = (appendEntriesRequest.LeaderNodeState, appendEntriesRequest.LeaderId, appendEntriesRequest.NodeId);
+            _logger.Debug($"Sending append entries request from leader '{ leaderId }' to node '{ nodeId }' with term '{ leaderNodeState.CurrentTerm }'.");
             var (prevLogIndex, prevLogTerm) = leaderNodeState.GetNodeNextInfo(nodeId);
             Context.ActorOf(MessageDispatcherActor.Props(clusterInfoService, grpcClientFactory), $"append-entries-request-{ leaderId }-{ nodeId }-{ leaderNodeState.CurrentTerm }-{ Guid.NewGuid() }")
                 .Tell((nodeId, new AppendEntriesRequest() { Term = leaderNodeState.CurrentTerm, LeaderId = leaderId, PrevLogIndex = prevLogIndex, PrevLogTerm = prevLogTerm, LeaderCommit = leaderNodeState.CommitLength }));
         });
 
-        Receive<(LeaderNodeState, string)>(appendEntriesRequest => {
-            var (leaderNodeState, leaderId) = appendEntriesRequest;
+        Receive<BroadcastAppendEntries>(appendEntriesRequest => {
+            var (leaderNodeState, leaderId) = (appendEntriesRequest.LeaderNodeState, appendEntriesRequest.LeaderId);
             _logger.Debug($"Broadcasting append entries request from leader '{ leaderId }' with term '{ leaderNodeState.CurrentTerm }'.");
             foreach (var nodeId in _nodesIds)
-            {
-                var (prevLogIndex, prevLogTerm) = leaderNodeState.GetNodeNextInfo(nodeId);
-                Context.ActorOf(MessageDispatcherActor.Props(clusterInfoService, grpcClientFactory), $"append-entries-request-{ leaderId }-{ nodeId }-{ leaderNodeState.CurrentTerm }-{ Guid.NewGuid() }")
-                    .Tell((nodeId, new AppendEntriesRequest() { Term = leaderNodeState.CurrentTerm, LeaderId = leaderId, PrevLogIndex = prevLogIndex, PrevLogTerm = prevLogTerm, LeaderCommit = leaderNodeState.CommitLength }));
-            }
+                Self.Tell(new AppendEntries(leaderNodeState, leaderId, nodeId));
         });
 
         Receive<(AppendEntriesRequest, AppendEntriesResponse)>(message => {

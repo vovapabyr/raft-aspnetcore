@@ -106,7 +106,7 @@ public class RaftActor : FSM<NodeRole, NodeState>
             {
                 LogDebug($"Sending append entries request to nodes.");
                 SetAppendEntriesTimer();
-                _raftMessagingActorRef.Tell((stateDataTimeout, _currentNode.NodeId));             
+                _raftMessagingActorRef.Tell(new BroadcastAppendEntries(stateDataTimeout, _currentNode.NodeId));             
                 return Stay().Using(stateDataTimeout.Copy());
             }
 
@@ -139,7 +139,7 @@ public class RaftActor : FSM<NodeRole, NodeState>
                         var decrementedPrevLogIndex = prevLogIndex - 1;
                         LogDebug($"Follower node '{ responseNodeId }' log is not up to date with leader '{ _currentNode.NodeId }'. Decremented prevLogIndex: '{ decrementedPrevLogIndex }'.");
                         stateDataAppendResponse.SetNodeNextIndex(responseNodeId, decrementedPrevLogIndex);
-                        _raftMessagingActorRef.Tell((stateDataAppendResponse, _currentNode.NodeId, responseNodeId)); 
+                        _raftMessagingActorRef.Tell(new AppendEntries(stateDataAppendResponse, _currentNode.NodeId, responseNodeId)); 
                     }
                 }
 
