@@ -104,6 +104,20 @@ public class RaftActor : FSM<NodeRole, NodeState>
 
         When(NodeRole.Leader, (state) =>
         {
+            var commitLogEntries = (LeaderNodeState leaderNodeState) => 
+            {
+                LogInformation("Trying to commit new log entries");
+                foreach (var committedEntry in leaderNodeState.TryCommitLogEntries())
+                {
+                    LogInformation($"New commited entry: '{ committedEntry }'.");
+                    if (leaderNodeState.TryGetPendingResponseSender(committedEntry.Id, out var actorRef))
+                    {
+                        LogInformation($"Sending entry '{ committedEntry }' replication acknowledgment back to client '{ actorRef.Path }'.");
+                        actorRef.Tell(new CommandSuccessfullyCommited(committedEntry.Id, committedEntry.Command, committedEntry.Term));
+                    }
+                }
+            };
+
             if (state.FsmEvent is AppendEntriesTimeout && state.StateData is LeaderNodeState stateDataTimeout)
             {
                 LogDebug($"Sending append entries request to nodes.");
@@ -134,7 +148,7 @@ public class RaftActor : FSM<NodeRole, NodeState>
                         LogDebug($"Updaing node '{ responseNodeId }' nextIndex and matchIndex values to '{ responseMatchIndex }' for leader '{ _currentNode.NodeId }'.");
                         stateDataAppendResponse.SetNodeNextIndex(responseNodeId, responseMatchIndex);
                         stateDataAppendResponse.SetNodeMatchIndex(responseNodeId, responseMatchIndex);
-                        // TODO Try commit matched logs.
+                        commitLogEntries(stateDataAppendResponse);
                     }
                     else if (stateDataAppendResponse.GetNodeNextInfo(responseNodeId) is var (prevLogIndex, _, _) && prevLogIndex > 0)
                     {
@@ -275,7 +289,7 @@ public class RaftActor : FSM<NodeRole, NodeState>
         {
             LogInformation($"APPLY COMMANDS FROM '{ nodeState.CommitLength }' TO '{ appendEntriesRequest.LeaderCommit }' TO THE SATE");
             // APPLY TO STATE ALL COMMANDS FROM nodeState.CommitLength TO appendEntriesRequest.LeaderCommit.
-            nodeState.CommitLength = appendEntriesRequest.LeaderCommit;
+            nodeState.CommitLength = Math.Min(appendEntriesRequest.LeaderCommit, nodeState.LogCount);
         }
     }
 
