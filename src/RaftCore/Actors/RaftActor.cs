@@ -134,7 +134,7 @@ public class RaftActor : FSM<NodeRole, NodeState>
                         stateDataAppendResponse.SetNodeMatchIndex(responseNodeId, responseMatchIndex);
                         // TODO Try commit matched logs.
                     }
-                    else if (stateDataAppendResponse.GetNodeNextInfo(responseNodeId) is var (prevLogIndex, _) && prevLogIndex > 0)
+                    else if (stateDataAppendResponse.GetNodeNextInfo(responseNodeId) is var (prevLogIndex, _, _) && prevLogIndex > 0)
                     {
                         var decrementedPrevLogIndex = prevLogIndex - 1;
                         LogDebug($"Follower node '{ responseNodeId }' log is not up to date with leader '{ _currentNode.NodeId }'. Decremented prevLogIndex: '{ decrementedPrevLogIndex }'.");
@@ -144,6 +144,17 @@ public class RaftActor : FSM<NodeRole, NodeState>
                 }
 
                 return Stay().Using(stateDataAppendResponse.Copy());
+            }
+
+            if (state.FsmEvent is AddNewCommand addNewCommandRequest && state.StateData is LeaderNodeState stateDataAddNewCommand)
+            {
+                var newLogEntryId = Guid.NewGuid().ToString();
+                stateDataAddNewCommand.AddPendingResponse(newLogEntryId, Sender);
+                var newLogEntry = new LogEntry() { Id = newLogEntryId, Command = addNewCommandRequest.Command, Term = stateDataAddNewCommand.CurrentTerm };
+                stateDataAddNewCommand.AddLog(_currentNode.NodeId, newLogEntry);
+                _raftMessagingActorRef.Tell(new BroadcastAppendEntries(stateDataAddNewCommand, _currentNode.NodeId));
+                SetAppendEntriesTimer();
+                return Stay().Using(stateDataAddNewCommand.Copy());  
             }
 
             return null;

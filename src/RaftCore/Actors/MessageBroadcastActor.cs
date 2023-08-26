@@ -31,16 +31,18 @@ public class MessageBroadcastActor : ReceiveActor
                 .Tell(message);
         });
 
-        Receive<AppendEntries>(appendEntriesRequest => {
-            var (leaderNodeState, leaderId, nodeId) = (appendEntriesRequest.LeaderNodeState, appendEntriesRequest.LeaderId, appendEntriesRequest.NodeId);
+        Receive<AppendEntries>(appentEntries => {
+            var (leaderNodeState, leaderId, nodeId) = (appentEntries.LeaderNodeState, appentEntries.LeaderId, appentEntries.NodeId);
             _logger.Debug($"Sending append entries request from leader '{ leaderId }' to node '{ nodeId }' with term '{ leaderNodeState.CurrentTerm }'.");
-            var (prevLogIndex, prevLogTerm) = leaderNodeState.GetNodeNextInfo(nodeId);
+            var (prevLogIndex, prevLogTerm, newEntries) = leaderNodeState.GetNodeNextInfo(nodeId);
+            var appendEntriesRequest = new AppendEntriesRequest() { Term = leaderNodeState.CurrentTerm, LeaderId = leaderId, PrevLogIndex = prevLogIndex, PrevLogTerm = prevLogTerm, LeaderCommit = leaderNodeState.CommitLength };
+            appendEntriesRequest.Entries.AddRange(newEntries);
             Context.ActorOf(MessageDispatcherActor.Props(clusterInfoService, grpcClientFactory), $"append-entries-request-{ leaderId }-{ nodeId }-{ leaderNodeState.CurrentTerm }-{ Guid.NewGuid() }")
-                .Tell((nodeId, new AppendEntriesRequest() { Term = leaderNodeState.CurrentTerm, LeaderId = leaderId, PrevLogIndex = prevLogIndex, PrevLogTerm = prevLogTerm, LeaderCommit = leaderNodeState.CommitLength }));
+                .Tell((nodeId, appendEntriesRequest));
         });
 
-        Receive<BroadcastAppendEntries>(appendEntriesRequest => {
-            var (leaderNodeState, leaderId) = (appendEntriesRequest.LeaderNodeState, appendEntriesRequest.LeaderId);
+        Receive<BroadcastAppendEntries>(broadcastAppendEntries => {
+            var (leaderNodeState, leaderId) = (broadcastAppendEntries.LeaderNodeState, broadcastAppendEntries.LeaderId);
             _logger.Debug($"Broadcasting append entries request from leader '{ leaderId }' with term '{ leaderNodeState.CurrentTerm }'.");
             foreach (var nodeId in _nodesIds)
                 Self.Tell(new AppendEntries(leaderNodeState, leaderId, nodeId));

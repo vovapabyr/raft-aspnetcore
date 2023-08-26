@@ -33,6 +33,7 @@ message AppendEntriesRequest
     int32 prevLogIndex = 3;
     int32 prevLogTerm = 4;
     int32 leaderCommit = 5;
+    repeated LogEntry entries = 6;
 }
 
 message AppendEntriesResponse
@@ -41,4 +42,11 @@ message AppendEntriesResponse
     string nodeId = 2;
     int32 matchIndex = 3;
     bool success = 4;
+}
+
+message LogEntry
+{
+    string id = 1;
+    string command = 2;
+    int32 term = 3;
 }
