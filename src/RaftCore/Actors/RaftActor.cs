@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+using System.ComponentModel;
 using Akka.Actor;
 using Akka.Event;
 using Grpc.Net.ClientFactory;
@@ -148,6 +150,7 @@ public class RaftActor : FSM<NodeRole, NodeState>
 
             if (state.FsmEvent is AddNewCommand addNewCommandRequest && state.StateData is LeaderNodeState stateDataAddNewCommand)
             {
+                LogInformation($"Client '{ Sender.Path }' adds new command. Current log entry count: '{ stateDataAddNewCommand.LogCount }'.");
                 var newLogEntryId = Guid.NewGuid().ToString();
                 stateDataAddNewCommand.AddPendingResponse(newLogEntryId, Sender);
                 var newLogEntry = new LogEntry() { Id = newLogEntryId, Command = addNewCommandRequest.Command, Term = stateDataAddNewCommand.CurrentTerm };
@@ -219,10 +222,10 @@ public class RaftActor : FSM<NodeRole, NodeState>
                 {
                     // Only the follower or candidate can succesfully respond to append entries.
                     // Always convert to follower.
-                    LogDebug($"Approve append entries request from leader '{ appendEntriesRequest.LeaderId }' with term '{ appendEntriesRequest.Term }'. Copying new log items.");
+                    LogDebug($"Approve append entries request from leader '{ appendEntriesRequest.LeaderId }' with term '{ appendEntriesRequest.Term }'.");
                     stateDataAppendRequest.CurrentLeader = appendEntriesRequest.LeaderId;
-                    // TODO AppendEntries.
-                    _raftMessagingActorRef.Tell((appendEntriesRequest, new AppendEntriesResponse(){ Term = stateDataAppendRequest.CurrentTerm, NodeId = _currentNode.NodeId, MatchIndex = appendEntriesRequest.PrevLogIndex, Success = true }));
+                    AppendEntries(appendEntriesRequest, stateDataAppendRequest);
+                    _raftMessagingActorRef.Tell((appendEntriesRequest, new AppendEntriesResponse(){ Term = stateDataAppendRequest.CurrentTerm, NodeId = _currentNode.NodeId, MatchIndex = appendEntriesRequest.PrevLogIndex + appendEntriesRequest.Entries.Count, Success = true }));
                     SetVoteTimer();
                     return GoTo(NodeRole.Follower).Using(stateDataAppendRequest.Copy());
                 }
@@ -240,12 +243,45 @@ public class RaftActor : FSM<NodeRole, NodeState>
         });
 
         Initialize();
-        _logger.Info("RAFT ACTOR INITILIZATION FINISHED.");
+        LogInformation("RAFT ACTOR INITILIZATION FINISHED.");
+    }
+
+    private void AppendEntries(AppendEntriesRequest appendEntriesRequest, NodeState nodeState)
+    {
+        var newEntries = appendEntriesRequest.Entries.ToImmutableList();
+        var prevLogIndex = appendEntriesRequest.PrevLogIndex;
+        // Replace overlaping entries in log with entries from request.
+        LogInformation($"Trying to copy new  '{ newEntries.Count }' log entries with prevLogIndex '{ prevLogIndex }'. Current log count: '{ nodeState.LogCount }'."); 
+        if (newEntries.Count > 0 && nodeState.LogCount > prevLogIndex)
+        {
+            var lastLogIndex = Math.Min(nodeState.LogCount, prevLogIndex + newEntries.Count) - 1;
+            if (nodeState.GetLogEntry(lastLogIndex).Term != newEntries[lastLogIndex - prevLogIndex].Term)
+            {
+                LogInformation($"There is overlapping entries between existing log and new entries from request. Cropping log to prevLogIndex '{ prevLogIndex }'.");
+                nodeState.CropLogEntry(prevLogIndex);
+            }
+        }
+        LogInformation($"Adding '{ prevLogIndex + newEntries.Count - nodeState.LogCount }' to node log.");
+        // Append new entries if any.
+        if (prevLogIndex + newEntries.Count > nodeState.LogCount)
+        {
+            for (var i = nodeState.LogCount - prevLogIndex; i < newEntries.Count; i++)
+            {
+                LogInformation($"Appending new entry: { newEntries[i] }.");
+                nodeState.AddLog(newEntries[i]);
+            }
+        }
+        if (appendEntriesRequest.LeaderCommit > nodeState.CommitLength)
+        {
+            LogInformation($"APPLY COMMANDS FROM '{ nodeState.CommitLength }' TO '{ appendEntriesRequest.LeaderCommit }' TO THE SATE");
+            // APPLY TO STATE ALL COMMANDS FROM nodeState.CommitLength TO appendEntriesRequest.LeaderCommit.
+            nodeState.CommitLength = appendEntriesRequest.LeaderCommit;
+        }
     }
 
     protected override void PreStart()
     {
-        _logger.Info("STARTING RAFT ACTOR!!!");
+        LogInformation("STARTING RAFT ACTOR!!!");
         base.PreStart();
     }
 

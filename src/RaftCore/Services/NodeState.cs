@@ -65,7 +65,18 @@ public class NodeState
 
     public LogEntry GetLogEntry(int index) => _log[index];
 
-    public int CommitLength => _commitLength;
+    public void CropLogEntry(int lastIndex)
+    {
+        _log = _log.Take(lastIndex).ToList();
+    }
+
+    public void AddLog(LogEntry logEntry) => _log.Add(logEntry);
+
+    public int CommitLength
+    {
+        get => _commitLength;
+        set => _commitLength = value;
+    }
 
     public (int, int) GetLastLogInfo()
     {
