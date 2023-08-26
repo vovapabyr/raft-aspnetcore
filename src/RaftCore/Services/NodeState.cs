@@ -100,6 +100,6 @@ public class NodeState
 
     public override string ToString()
     {
-        return $"TERM: '{ CurrentTerm }'. LEADER: '{ CurrentLeader }'. VOTED_FOR: '{ VotedFor }'.";
+        return $"TERM: '{ CurrentTerm }'. LEADER: '{ CurrentLeader }'. VOTED_FOR: '{ VotedFor }'. LOG_COUNT: '{ LogCount }'. COMMIT_LENGTH: '{ CommitLength }'.";
     }
 }

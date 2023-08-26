@@ -106,7 +106,7 @@ public class RaftActor : FSM<NodeRole, NodeState>
         {
             var commitLogEntries = (LeaderNodeState leaderNodeState) => 
             {
-                LogInformation("Trying to commit new log entries");
+                LogInformation("Trying to commit new log entries.");
                 foreach (var committedEntry in leaderNodeState.TryCommitLogEntries())
                 {
                     LogInformation($"New commited entry: '{ committedEntry }'.");
@@ -114,6 +114,7 @@ public class RaftActor : FSM<NodeRole, NodeState>
                     {
                         LogInformation($"Sending entry '{ committedEntry }' replication acknowledgment back to client '{ actorRef.Path }'.");
                         actorRef.Tell(new CommandSuccessfullyCommited(committedEntry.Id, committedEntry.Command, committedEntry.Term));
+                        leaderNodeState.TryRemovePendingResponseSender(committedEntry.Id);
                     }
                 }
             };
@@ -250,6 +251,13 @@ public class RaftActor : FSM<NodeRole, NodeState>
                     _raftMessagingActorRef.Tell((appendEntriesRequest, new AppendEntriesResponse(){ Term = stateDataAppendRequest.CurrentTerm, NodeId = _currentNode.NodeId, MatchIndex = 0, Success = false }));
                     return Stay().Using(stateDataAppendRequest.Copy());
                 }                               
+            }
+
+            if (state.FsmEvent is AddNewCommand addNewCommandRequest && state.StateData is NodeState stateDataAddNewCommand)
+            {
+                LogWarning($"Node is not a leader. Redirecting to leader '{ stateDataAddNewCommand.CurrentLeader }'.");
+                Sender.Tell(new RedirectToLeader(stateDataAddNewCommand.CurrentTerm, stateDataAddNewCommand.CurrentLeader));
+                return Stay().Using(stateDataAddNewCommand.Copy());  
             }
 
             LogWarning($"Actor couldn't handle the message: '{ state.FsmEvent }'. Type: { state.FsmEvent.GetType() }.");

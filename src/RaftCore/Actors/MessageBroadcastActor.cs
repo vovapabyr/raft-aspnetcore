@@ -32,11 +32,11 @@ public class MessageBroadcastActor : ReceiveActor
         });
 
         Receive<AppendEntries>(appentEntries => {
-            var (leaderNodeState, leaderId, nodeId) = (appentEntries.LeaderNodeState, appentEntries.LeaderId, appentEntries.NodeId);
-            _logger.Debug($"Sending append entries request from leader '{ leaderId }' to node '{ nodeId }' with term '{ leaderNodeState.CurrentTerm }'.");
+            var (leaderNodeState, leaderId, nodeId) = (appentEntries.LeaderNodeState, appentEntries.LeaderId, appentEntries.NodeId);            
             var (prevLogIndex, prevLogTerm, newEntries) = leaderNodeState.GetNodeNextInfo(nodeId);
             var appendEntriesRequest = new AppendEntriesRequest() { Term = leaderNodeState.CurrentTerm, LeaderId = leaderId, PrevLogIndex = prevLogIndex, PrevLogTerm = prevLogTerm, LeaderCommit = leaderNodeState.CommitLength };
             appendEntriesRequest.Entries.AddRange(newEntries);
+            _logger.Debug($"Sending append entries request: '{ appendEntriesRequest }'.");
             Context.ActorOf(MessageDispatcherActor.Props(clusterInfoService, grpcClientFactory), $"append-entries-request-{ leaderId }-{ nodeId }-{ leaderNodeState.CurrentTerm }-{ Guid.NewGuid() }")
                 .Tell((nodeId, appendEntriesRequest));
         });

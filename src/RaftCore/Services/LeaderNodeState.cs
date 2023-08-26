@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text;
 using Akka.Actor;
 
 namespace RaftCore.Services;
@@ -20,12 +21,13 @@ public class LeaderNodeState : NodeState
         _majority = (int)Math.Ceiling((_nodesIds.Count + 1) / (double)2);
     }
 
-    public LeaderNodeState(int currentTerm, string? votedFor, IList<LogEntry> log, int commitLength, string? currentLeader, Dictionary<string, int> nextIndex, Dictionary<string, int> matchIndex, Dictionary<string, IActorRef> pendingResponses) 
+    public LeaderNodeState(int currentTerm, string? votedFor, IList<LogEntry> log, int commitLength, string? currentLeader, Dictionary<string, int> nextIndex, Dictionary<string, int> matchIndex, Dictionary<string, IActorRef> pendingResponses, int majority) 
         : base(currentTerm, votedFor, log, commitLength, currentLeader)
     {
         _nextIndex = nextIndex;
         _matchIndex = matchIndex;
         _pendingResponses = pendingResponses;
+        _majority = majority;
     }
 
     public void AddLog(string leaderId, LogEntry logEntry)
@@ -41,10 +43,11 @@ public class LeaderNodeState : NodeState
     public (int, int, ImmutableList<LogEntry>) GetNodeNextInfo(string nodeId)
     {
         var nodeNextIndex = _nextIndex[nodeId];
+        var newEntries = _log.Skip(nodeNextIndex).ToImmutableList();
         if (nodeNextIndex == 0)
-            return (nodeNextIndex, 0, ImmutableList<LogEntry>.Empty);
+            return (nodeNextIndex, 0, newEntries);
         
-        return (nodeNextIndex, GetLogEntry(nodeNextIndex - 1).Term, _log.Skip(nodeNextIndex).ToImmutableList());
+        return (nodeNextIndex, GetLogEntry(nodeNextIndex - 1).Term, newEntries);
     }
 
     public void AddPendingResponse(string logEntryId, IActorRef sender) 
@@ -59,6 +62,8 @@ public class LeaderNodeState : NodeState
     {
         return _pendingResponses.TryGetValue(logEntryId, out actorRef);
     }
+
+    public void TryRemovePendingResponseSender(string logEntryId) => _pendingResponses.Remove(logEntryId);
 
     public int GetNodeMatchIndex(string nodeId) => _matchIndex[nodeId];
 
@@ -82,14 +87,28 @@ public class LeaderNodeState : NodeState
                 yield return GetLogEntry(CommitLength);
                 CommitLength += 1;
             }
+            else
+                yield break;
         }
     }
 
-    public override NodeState Copy() => new LeaderNodeState(_currentTerm, _votedFor, new List<LogEntry>(_log), _commitLength, _currentLeader, new Dictionary<string, int>(_nextIndex), new Dictionary<string, int>(_matchIndex), new Dictionary<string, IActorRef>(_pendingResponses));
+    public override NodeState Copy() => new LeaderNodeState(_currentTerm, _votedFor, new List<LogEntry>(_log), _commitLength, _currentLeader, new Dictionary<string, int>(_nextIndex), new Dictionary<string, int>(_matchIndex), new Dictionary<string, IActorRef>(_pendingResponses), _majority);
 
     public override NodeState CopyAsBase() => new NodeState(_currentTerm, _votedFor, new List<LogEntry>(_log), _commitLength, _currentLeader);
 
     public override CandidateNodeState CopyAsCandidate() => new CandidateNodeState(_currentTerm, _votedFor, new List<LogEntry>(_log), _commitLength, _currentLeader, new HashSet<string>());
 
-    public override LeaderNodeState CopyAsLeader(List<string> nodesIds) => new LeaderNodeState(_currentTerm, _votedFor, new List<LogEntry>(_log), _commitLength, _currentLeader, new Dictionary<string, int>(_nextIndex), new Dictionary<string, int>(_matchIndex), new Dictionary<string, IActorRef>(_pendingResponses)); 
+    public override LeaderNodeState CopyAsLeader(List<string> nodesIds) => new LeaderNodeState(_currentTerm, _votedFor, new List<LogEntry>(_log), _commitLength, _currentLeader, new Dictionary<string, int>(_nextIndex), new Dictionary<string, int>(_matchIndex), new Dictionary<string, IActorRef>(_pendingResponses), _majority);
+
+    public override string ToString()
+    {
+        var stringBuilder = new StringBuilder();
+        stringBuilder.Append("MATCH_INDEX: { ");
+        foreach (var node in _matchIndex)
+        {
+            stringBuilder.Append($"{{ node: { node.Key }, value: { node.Value }}}, ");
+        }
+        stringBuilder.Append(" }.");
+        return $" { base.ToString() } { stringBuilder }";
+    }
 }
