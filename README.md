@@ -29,7 +29,7 @@ Now let's add ```msg3, msg4``` to the new leader. We can observe that two messag
 Now let's add ```msg5``` to the partioned leader. We can observe that the ```msg5``` is added to the partitioned leader log:
 ![three-nodes-partitioned-leader-new-message.png](/results/three-nodes-partitioned-leader-new-message.png)
 but because ```msg5``` cannot be replicated to the majority it cannot be commited, thus client is stuck waiting for response:
-![three-nodes-client-stuck.png](three-nodes-client-stuck.png)
+![three-nodes-client-stuck.png](/results/three-nodes-client-stuck.png)
 ## Join partitioned leader back to cluster
 Let's connect partitioned leader and its proxy back to cluster with the following commands: ```docker network connect raft-aspnetcore_default raft-aspnetcore-raftnode-2```, ```docker network connect raft-aspnetcore_default raftnode-2-proxy```. Now we can see the ```msg5``` is overriden by ```msg3, msg4``` messages:
 ![three-nodes-joined-partitioned-leader.png](/results/three-nodes-joined-partitioned-leader.png)
