@@ -40,4 +40,21 @@ public class RaftController : ControllerBase
         _logger.LogWarning($"Failed to add command '{ command }'. Response: '{ response }'.");
         return BadRequest("Unknown error.");
     }
+
+    [HttpGet("info")]
+    public async Task<IActionResult> GetNodeInfo()
+    {
+        var inbox = Inbox.Create(_actorSystem);
+        _logger.LogInformation("Trying to get node info.");
+        inbox.Send(_raftARefProvider.ActorRef, new GetNodeInfo());
+
+        // Fails on timeout = TimeSpan.MaxValue, because of _system.Scheduler.MonotonicClock + timeout (Inbox.cs 556line)
+        var response = await inbox.ReceiveAsync(TimeSpan.MaxValue.Add(-TimeSpan.FromDays(1)));
+        _logger.LogInformation($"Response: '{ response }'.");
+        if (response is NodeInfo nodeInfo)
+            return Ok(new { Role = nodeInfo.Role.ToString(), nodeInfo.Term, nodeInfo.CommitLength, Log = nodeInfo.Log.Select(x => new { x.Command, x.Term }) });
+
+        _logger.LogWarning($"Failed to get node status. Response: '{ response }'.");
+        return BadRequest("Unknown error.");
+    }
 }

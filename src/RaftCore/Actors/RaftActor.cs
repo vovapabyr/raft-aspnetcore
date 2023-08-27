@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.ComponentModel;
 using Akka.Actor;
 using Akka.Event;
 using Grpc.Net.ClientFactory;
@@ -21,8 +20,8 @@ public class RaftActor : FSM<NodeRole, NodeState>
     private readonly int _voteTimeoutMaxValue;
     private readonly int _appendEntriesTimeoutMinValue;
     private readonly int _appendEntriesTimeoutMaxValue;
-    private readonly NodeInfo _currentNode;
-    private readonly List<NodeInfo> _clusterNodes;
+    private readonly Common.NodeInfo _currentNode;
+    private readonly List<Common.NodeInfo> _clusterNodes;
     private readonly int _majority;
 
     public RaftActor(IClusterInfoService clusterInfoService, GrpcClientFactory grpcClientFactory)
@@ -259,8 +258,13 @@ public class RaftActor : FSM<NodeRole, NodeState>
             if (state.FsmEvent is AddNewCommand addNewCommandRequest && state.StateData is NodeState stateDataAddNewCommand)
             {
                 LogWarning($"Node is not a leader. Redirecting to leader '{ stateDataAddNewCommand.CurrentLeader }'.");
-                Sender.Tell(new RedirectToLeader(stateDataAddNewCommand.CurrentTerm, stateDataAddNewCommand.CurrentLeader));
-                return Stay().Using(stateDataAddNewCommand.Copy());  
+                return Stay().Using(stateDataAddNewCommand.Copy()).Replying(new RedirectToLeader(stateDataAddNewCommand.CurrentTerm, stateDataAddNewCommand.CurrentLeader));  
+            }
+
+            if (state.FsmEvent is GetNodeInfo getNodeInfoRequest && state.StateData is NodeState stateDataGenNodeInfo)
+            {
+                LogInformation($"Client '{ Sender.Path }' requests node info.");
+                return Stay().Using(stateDataGenNodeInfo.Copy()).Replying(new Messages.NodeInfo(StateName, stateDataGenNodeInfo.CurrentTerm, stateDataGenNodeInfo.CommitLength, stateDataGenNodeInfo.CopyLog()));
             }
 
             LogWarning($"Actor couldn't handle the message: '{ state.FsmEvent }'. Type: { state.FsmEvent.GetType() }.");

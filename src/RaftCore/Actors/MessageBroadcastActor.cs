@@ -1,7 +1,6 @@
 using Akka.Actor;
 using Akka.Event;
 using Grpc.Net.ClientFactory;
-using RaftCore.Common;
 using RaftCore.Messages;
 using RaftCore.Services;
 
@@ -10,7 +9,7 @@ namespace RaftCore.Actors;
 public class MessageBroadcastActor : ReceiveActor
 {
     private readonly ILoggingAdapter _logger = Context.GetLogger();
-    private readonly List<NodeInfo> _clusterNodes;
+    private readonly List<Common.NodeInfo> _clusterNodes;
     private readonly List<string> _nodesIds = new List<string>();
 
     public MessageBroadcastActor(IClusterInfoService clusterInfoService, GrpcClientFactory grpcClientFactory)

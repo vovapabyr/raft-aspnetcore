@@ -71,6 +71,8 @@ public class NodeState
 
     public virtual void AddLog(LogEntry logEntry) => _log.Add(logEntry);
 
+    public List<LogEntry> CopyLog() => _log.ToList();
+
     public int CommitLength
     {
         get => _commitLength;
