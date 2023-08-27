@@ -1,7 +1,6 @@
 using Akka.Actor;
-using RaftCore.Common;
 
-namespace RaftCore.Services;
+namespace RaftCore.States;
 
 public class CandidateNodeState : NodeState
 {

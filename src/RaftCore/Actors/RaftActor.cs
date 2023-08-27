@@ -6,6 +6,7 @@ using Grpc.Net.ClientFactory;
 using RaftCore.Common;
 using RaftCore.Messages;
 using RaftCore.Services;
+using RaftCore.States;
 
 namespace RaftCore.Actors;
 
@@ -24,7 +25,7 @@ public class RaftActor : FSM<NodeRole, NodeState>
     private readonly List<NodeInfo> _clusterNodes;
     private readonly int _majority;
 
-    public RaftActor(IClusterInfoService clusterInfoService, NodeState nodeStateService, GrpcClientFactory grpcClientFactory)
+    public RaftActor(IClusterInfoService clusterInfoService, GrpcClientFactory grpcClientFactory)
     {
         _raftMessagingActorRef = Context.ActorOf(MessageBroadcastActor.Props(clusterInfoService, grpcClientFactory), "raft-message-broadcast-actor");
         _voteTimeoutMinValue = clusterInfoService.VoteTimeoutMinValue;

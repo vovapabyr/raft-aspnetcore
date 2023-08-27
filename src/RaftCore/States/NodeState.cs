@@ -1,7 +1,6 @@
-using System.Collections.Immutable;
 using Akka.Actor;
 
-namespace RaftCore.Services;
+namespace RaftCore.States;
 
 public class NodeState
 {

@@ -1,9 +1,0 @@
-syntax = "proto3";
-
-option csharp_namespace = "RaftNode";
-
-import "google/protobuf/empty.proto";
-
-service DiscoveryService {
-  rpc Discover (google.protobuf.Empty) returns (google.protobuf.Empty);
-}

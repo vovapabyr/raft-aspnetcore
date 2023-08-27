@@ -1,8 +1,5 @@
-using Akka.Actor;
 using Akka.DependencyInjection;
-using Akka.Dispatch.SysMsg;
 using Akka.Hosting;
-using RaftCore;
 using RaftCore.Actors;
 using RaftCore.Services;
 using RaftNode.Extensions;
@@ -18,7 +15,6 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddSingleton<IClusterInfoService, SimpleClusterInfoService>();
-builder.Services.AddSingleton<NodeState>();
 builder.Services.Configure<ClusterInfoOptions>(builder.Configuration.GetSection(ClusterInfoOptions.Key));
 builder.Services.AddGrpc();
 builder.Services.ConfigureGrpcClients(builder.Configuration);
@@ -50,7 +46,6 @@ app.UseHttpsRedirection();
 app.UseRouting();
 
 app.MapControllers();
-app.MapGrpcService<DiscoveryService>();
 app.MapGrpcService<RaftCore.Services.RaftMessagingService>();
 
 app.Run();

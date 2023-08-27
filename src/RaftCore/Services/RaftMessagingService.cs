@@ -9,12 +9,10 @@ namespace RaftCore.Services;
 
 public class RaftMessagingService : RaftMessagingServiceBase
 {
-    //private readonly RaftModule _raftModule;
     private readonly IRequiredActor<RaftActor> _raftARefProvider;
 
     public RaftMessagingService(IRequiredActor<RaftActor> raftARefProvider)
     {
-        //_raftModule = raftModule;
         _raftARefProvider = raftARefProvider;
     }
 

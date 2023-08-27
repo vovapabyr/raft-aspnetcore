@@ -1,9 +1,8 @@
 using System.Collections.Immutable;
 using System.Text;
 using Akka.Actor;
-using Microsoft.AspNetCore.Mvc.Diagnostics;
 
-namespace RaftCore.Services;
+namespace RaftCore.States;
 
 public class LeaderNodeState : NodeState
 {
