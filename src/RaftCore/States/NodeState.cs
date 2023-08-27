@@ -4,8 +4,7 @@ namespace RaftCore.States;
 
 public class NodeState
 {
-    // TODO Check against docs.
-    #region Raft persisted
+    #region Raft
 
     protected int _currentTerm = 0;
 
@@ -17,16 +16,11 @@ public class NodeState
 
     #endregion
 
-    // TODO Check against docs.
-    #region Raft not-persisted
-
     protected string? _currentLeader = null;
 
     // Relates to LeaderNodeState as only leader can receive and answear to clients. 
     // The reason it's in NodeState is because in case of leader -> follower -> leader again it should still be able to respond to client. 
     protected Dictionary<string, IActorRef> _pendingResponses = new Dictionary<string, IActorRef>();
-
-    #endregion
 
     public NodeState() {}
 

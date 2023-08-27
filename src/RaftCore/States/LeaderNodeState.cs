@@ -6,9 +6,13 @@ namespace RaftCore.States;
 
 public class LeaderNodeState : NodeState
 {
+    #region Raft
+
     private Dictionary<string, int> _nextIndex;
 
     private Dictionary<string, int> _matchIndex;
+
+    #endregion
 
     private readonly int _majority;
 

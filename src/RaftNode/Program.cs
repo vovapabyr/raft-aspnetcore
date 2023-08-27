@@ -46,6 +46,6 @@ app.UseHttpsRedirection();
 app.UseRouting();
 
 app.MapControllers();
-app.MapGrpcService<RaftCore.Services.RaftMessagingService>();
+app.MapGrpcService<RaftMessagingService>();
 
 app.Run();
