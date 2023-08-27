@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Akka.Actor;
 
 namespace RaftCore.Services;
 
@@ -22,17 +23,22 @@ public class NodeState
 
     protected string? _currentLeader = null;
 
+    // Relates to LeaderNodeState as only leader can receive and answear to clients. 
+    // The reason it's in NodeState is because in case of leader -> follower -> leader again it should still be able to respond to client. 
+    protected Dictionary<string, IActorRef> _pendingResponses = new Dictionary<string, IActorRef>();
+
     #endregion
 
     public NodeState() {}
 
-    public NodeState(int currentTerm, string? votedFor, IList<LogEntry> log, int commitLength, string? currentLeader)
+    public NodeState(int currentTerm, string? votedFor, IList<LogEntry> log, int commitLength, string? currentLeader, Dictionary<string, IActorRef> pendingResponses)
     {
         _currentTerm = currentTerm;
         _votedFor = votedFor;
         _log = log;
         _commitLength = commitLength;
         _currentLeader = currentLeader;
+        _pendingResponses = pendingResponses;
     }
 
     public int CurrentTerm 
@@ -90,13 +96,13 @@ public class NodeState
         return (lastLogIndedx, lastLogTerm);
     }
 
-    public virtual NodeState Copy() => new NodeState(_currentTerm, _votedFor, new List<LogEntry>(_log), _commitLength, _currentLeader);
+    public virtual NodeState Copy() => new NodeState(_currentTerm, _votedFor, new List<LogEntry>(_log), _commitLength, _currentLeader, new Dictionary<string, IActorRef>(_pendingResponses));
 
-    public virtual NodeState CopyAsBase() => new NodeState(_currentTerm, _votedFor, new List<LogEntry>(_log), _commitLength, _currentLeader);
+    public virtual NodeState CopyAsBase() => new NodeState(_currentTerm, _votedFor, new List<LogEntry>(_log), _commitLength, _currentLeader, new Dictionary<string, IActorRef>(_pendingResponses));
 
-    public virtual CandidateNodeState CopyAsCandidate() => new CandidateNodeState(_currentTerm, _votedFor, new List<LogEntry>(_log), _commitLength, _currentLeader, new HashSet<string>());
+    public virtual CandidateNodeState CopyAsCandidate() => new CandidateNodeState(_currentTerm, _votedFor, new List<LogEntry>(_log), _commitLength, _currentLeader, new Dictionary<string, IActorRef>(_pendingResponses), new HashSet<string>());
 
-    public virtual LeaderNodeState CopyAsLeader(List<string> nodesIds) => new LeaderNodeState(_currentTerm, _votedFor, new List<LogEntry>(_log), _commitLength, _currentLeader, nodesIds);  
+    public virtual LeaderNodeState CopyAsLeader(List<string> nodesIds) => new LeaderNodeState(_currentTerm, _votedFor, new List<LogEntry>(_log), _commitLength, _currentLeader, new Dictionary<string, IActorRef>(_pendingResponses), nodesIds);  
 
     public override string ToString()
     {

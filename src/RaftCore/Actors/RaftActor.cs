@@ -185,6 +185,7 @@ public class RaftActor : FSM<NodeRole, NodeState>
                 LogInformation($"Got higher term '{ newTermVoteRequest.Term }' from '{ newTermVoteRequest.CandidateId }' on vote request. Downgrading to follower.");
                 newTermStateDataVoteRequest.CurrentTerm = newTermVoteRequest.Term;
                 newTermStateDataVoteRequest.Vote(null);
+                SetVoteTimer();
                 Self.Tell(state.FsmEvent);
                 return GoTo(NodeRole.Follower).Using(newTermStateDataVoteRequest.CopyAsBase());
             }
@@ -194,6 +195,7 @@ public class RaftActor : FSM<NodeRole, NodeState>
                 LogInformation($"Got higher term '{ newTermAppendEntriesRequest.Term }' from leader '{ newTermAppendEntriesRequest.LeaderId }' on append entries request. Downgrading to follower.");
                 newTermstateDataAppendRequest.CurrentTerm = newTermAppendEntriesRequest.Term;
                 newTermstateDataAppendRequest.Vote(null);
+                SetVoteTimer();
                 Self.Tell(state.FsmEvent);
                 return GoTo(NodeRole.Follower).Using(newTermstateDataAppendRequest.CopyAsBase());
             }

@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Text;
 using Akka.Actor;
+using Microsoft.AspNetCore.Mvc.Diagnostics;
 
 namespace RaftCore.Services;
 
@@ -10,23 +11,22 @@ public class LeaderNodeState : NodeState
 
     private Dictionary<string, int> _matchIndex;
 
-    private Dictionary<string, IActorRef> _pendingResponses = new Dictionary<string, IActorRef>();
-
     private readonly int _majority;
 
-    public LeaderNodeState(int currentTerm, string? votedFor, IList<LogEntry> log, int commitLength, string? currentLeader, List<string> _nodesIds) : base(currentTerm, votedFor, log, commitLength, currentLeader)
+    public LeaderNodeState(int currentTerm, string? votedFor, IList<LogEntry> log, int commitLength, string? currentLeader, Dictionary<string, IActorRef> pendingResponses, List<string> _nodesIds) : base(currentTerm, votedFor, log, commitLength, currentLeader, pendingResponses)
     {
         _nextIndex = _nodesIds.ToDictionary(id => id, id => log.Count);
         _matchIndex = _nodesIds.ToDictionary(id => id, id => 0);
+        // Node after transition to leader can acknowledge all its own logs.
+        _matchIndex.Add(currentLeader, log.Count);
         _majority = (int)Math.Ceiling((_nodesIds.Count + 1) / (double)2);
     }
 
-    public LeaderNodeState(int currentTerm, string? votedFor, IList<LogEntry> log, int commitLength, string? currentLeader, Dictionary<string, int> nextIndex, Dictionary<string, int> matchIndex, Dictionary<string, IActorRef> pendingResponses, int majority) 
-        : base(currentTerm, votedFor, log, commitLength, currentLeader)
+    public LeaderNodeState(int currentTerm, string? votedFor, IList<LogEntry> log, int commitLength, string? currentLeader, Dictionary<string, IActorRef> pendingResponses, Dictionary<string, int> nextIndex, Dictionary<string, int> matchIndex, int majority) 
+        : base(currentTerm, votedFor, log, commitLength, currentLeader, pendingResponses)
     {
         _nextIndex = nextIndex;
         _matchIndex = matchIndex;
-        _pendingResponses = pendingResponses;
         _majority = majority;
     }
 
@@ -72,33 +72,46 @@ public class LeaderNodeState : NodeState
 
     public IEnumerable<LogEntry> TryCommitLogEntries()
     {
-        // Ensures that new leader cannot commit logs from previos terms until it gets new message. 
-        while (CommitLength < LogCount)
+        // Search latest log entry that can be commited.
+        var newCommitLength = CommitLength;
+        while (newCommitLength < LogCount)
         {
             var matchedNodesCount = 0;
             foreach (var matchNodeInfo in _matchIndex)
             {
-                if (matchNodeInfo.Value > CommitLength)
+                if (matchNodeInfo.Value > newCommitLength)
                     matchedNodesCount++;
             }
 
-            if (matchedNodesCount >= _majority)
+            if (matchedNodesCount < _majority)
+                break;
+
+            newCommitLength++;
+        }
+
+        // Return if nothing changed.
+        if (newCommitLength == CommitLength)
+            yield break;
+
+        // Ensures that new leader cannot commit logs from previos terms until it commits log entry from current term.
+        if (GetLogEntry(newCommitLength - 1).Term == CurrentTerm)
+        {
+            // Commit all logs until newCommitLength.
+            for (var i = CommitLength; i < newCommitLength; i++)
             {
-                yield return GetLogEntry(CommitLength);
-                CommitLength += 1;
+                CommitLength = i + 1;
+                yield return GetLogEntry(i);
             }
-            else
-                yield break;
         }
     }
 
-    public override NodeState Copy() => new LeaderNodeState(_currentTerm, _votedFor, new List<LogEntry>(_log), _commitLength, _currentLeader, new Dictionary<string, int>(_nextIndex), new Dictionary<string, int>(_matchIndex), new Dictionary<string, IActorRef>(_pendingResponses), _majority);
+    public override NodeState Copy() => new LeaderNodeState(_currentTerm, _votedFor, new List<LogEntry>(_log), _commitLength, _currentLeader, new Dictionary<string, IActorRef>(_pendingResponses), new Dictionary<string, int>(_nextIndex), new Dictionary<string, int>(_matchIndex), _majority);
 
-    public override NodeState CopyAsBase() => new NodeState(_currentTerm, _votedFor, new List<LogEntry>(_log), _commitLength, _currentLeader);
+    public override NodeState CopyAsBase() => new NodeState(_currentTerm, _votedFor, new List<LogEntry>(_log), _commitLength, _currentLeader, new Dictionary<string, IActorRef>(_pendingResponses));
 
-    public override CandidateNodeState CopyAsCandidate() => new CandidateNodeState(_currentTerm, _votedFor, new List<LogEntry>(_log), _commitLength, _currentLeader, new HashSet<string>());
+    public override CandidateNodeState CopyAsCandidate() => new CandidateNodeState(_currentTerm, _votedFor, new List<LogEntry>(_log), _commitLength, _currentLeader, new Dictionary<string, IActorRef>(_pendingResponses), new HashSet<string>());
 
-    public override LeaderNodeState CopyAsLeader(List<string> nodesIds) => new LeaderNodeState(_currentTerm, _votedFor, new List<LogEntry>(_log), _commitLength, _currentLeader, new Dictionary<string, int>(_nextIndex), new Dictionary<string, int>(_matchIndex), new Dictionary<string, IActorRef>(_pendingResponses), _majority);
+    public override LeaderNodeState CopyAsLeader(List<string> nodesIds) => new LeaderNodeState(_currentTerm, _votedFor, new List<LogEntry>(_log), _commitLength, _currentLeader, new Dictionary<string, IActorRef>(_pendingResponses), new Dictionary<string, int>(_nextIndex), new Dictionary<string, int>(_matchIndex), _majority);
 
     public override string ToString()
     {
