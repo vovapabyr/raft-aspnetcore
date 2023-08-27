@@ -4,6 +4,10 @@ namespace RaftCore.Common;
 
 public class NodeInfo 
 {
+    public NodeInfo(string hostName) : this(hostName, IPAddress.None)
+    {
+    }
+
     public NodeInfo(string hostName, IPAddress iPAddress)
     {
         HostName = hostName;

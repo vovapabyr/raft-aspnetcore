@@ -21,7 +21,9 @@ public class SimpleClusterInfoService : IClusterInfoService
         AppendEntriesTimeoutMinValue = _clusterInfoOptions.AppendEntriesTimeoutMinValue;
         AppendEntriesTimeoutMaxValue = _clusterInfoOptions.AppendEntriesTimeoutMaxValue;
         _logger = logger;
-        ResolveNodesDnsAsync().Wait();
+        // Uncomment next line and comment InitStaticNodes() if you want to ensure that all ndoes alive before starting raft.
+        //ResolveNodesDnsAsync().Wait();
+        InitStaticNodes();
     }
 
     public NodeInfo CurrentNode { get; private set; }
@@ -65,6 +67,37 @@ public class SimpleClusterInfoService : IClusterInfoService
                 }));
 
         await Task.WhenAll(discoverNodesTasks);
+
+        _logger.LogInformation($"CURRENT NODE: { CurrentNode } AND '{ ClusterNodes.Count }' NODES DNS RESOLVED."); 
+    }
+
+    public void InitStaticNodes()
+    {
+        var hostIpAddress = Dns.GetHostAddresses(Dns.GetHostName()).First();
+        foreach (var nodeName in _clusterInfoOptions.GetNodesNames())
+        {
+            IPAddress ipAddress = IPAddress.None;
+            try
+            {
+                ipAddress = Dns.GetHostAddresses(nodeName).First();
+            }
+            catch (Exception)
+            {
+                _logger.LogWarning($"Cannot resolve ip address of '{ nodeName }'.");
+            }
+
+            if(hostIpAddress.Equals(ipAddress))
+            {
+                CurrentNode = new NodeInfo(nodeName, hostIpAddress);
+                _logger.LogInformation($"Current Node: { CurrentNode }.");
+            }
+            else
+            {
+                var node = new NodeInfo(nodeName);
+                ClusterNodes.Add(node);
+                _logger.LogInformation($"Node: { node }.");
+            }
+        }
 
         _logger.LogInformation($"CURRENT NODE: { CurrentNode } AND '{ ClusterNodes.Count }' NODES DNS RESOLVED."); 
     }

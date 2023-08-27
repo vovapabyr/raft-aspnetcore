@@ -52,7 +52,7 @@ public class RaftController : ControllerBase
         var response = await inbox.ReceiveAsync(TimeSpan.MaxValue.Add(-TimeSpan.FromDays(1)));
         _logger.LogInformation($"Response: '{ response }'.");
         if (response is NodeInfo nodeInfo)
-            return Ok(new { Role = nodeInfo.Role.ToString(), nodeInfo.Term, nodeInfo.CommitLength, Log = nodeInfo.Log.Select(x => new { x.Command, x.Term }) });
+            return Ok(new { nodeInfo.HostName, Role = nodeInfo.Role.ToString(), nodeInfo.Term, nodeInfo.CommitLength, Log = nodeInfo.Log.Select(x => new { x.Command, x.Term }) });
 
         _logger.LogWarning($"Failed to get node status. Response: '{ response }'.");
         return BadRequest("Unknown error.");

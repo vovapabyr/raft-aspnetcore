@@ -264,7 +264,7 @@ public class RaftActor : FSM<NodeRole, NodeState>
             if (state.FsmEvent is GetNodeInfo getNodeInfoRequest && state.StateData is NodeState stateDataGenNodeInfo)
             {
                 LogInformation($"Client '{ Sender.Path }' requests node info.");
-                return Stay().Using(stateDataGenNodeInfo.Copy()).Replying(new Messages.NodeInfo(StateName, stateDataGenNodeInfo.CurrentTerm, stateDataGenNodeInfo.CommitLength, stateDataGenNodeInfo.CopyLog()));
+                return Stay().Using(stateDataGenNodeInfo.Copy()).Replying(new Messages.NodeInfo(_currentNode.NodeId, StateName, stateDataGenNodeInfo.CurrentTerm, stateDataGenNodeInfo.CommitLength, stateDataGenNodeInfo.CopyLog()));
             }
 
             LogWarning($"Actor couldn't handle the message: '{ state.FsmEvent }'. Type: { state.FsmEvent.GetType() }.");
