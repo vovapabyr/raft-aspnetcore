@@ -169,7 +169,7 @@ public class RaftActor : FSM<NodeRole, NodeState>
                 var newLogEntryId = Guid.NewGuid().ToString();
                 stateDataAddNewCommand.AddPendingResponse(newLogEntryId, Sender);
                 var newLogEntry = new LogEntry() { Id = newLogEntryId, Command = addNewCommandRequest.Command, Term = stateDataAddNewCommand.CurrentTerm };
-                stateDataAddNewCommand.AddLog(_currentNode.NodeId, newLogEntry);
+                stateDataAddNewCommand.AddLog(newLogEntry);
                 _raftMessagingActorRef.Tell(new BroadcastAppendEntries(stateDataAddNewCommand, _currentNode.NodeId));
                 SetAppendEntriesTimer();
                 return Stay().Using(stateDataAddNewCommand.Copy());  

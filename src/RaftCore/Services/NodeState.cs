@@ -70,7 +70,7 @@ public class NodeState
         _log = _log.Take(lastIndex).ToList();
     }
 
-    public void AddLog(LogEntry logEntry) => _log.Add(logEntry);
+    public virtual void AddLog(LogEntry logEntry) => _log.Add(logEntry);
 
     public int CommitLength
     {

@@ -30,14 +30,13 @@ public class LeaderNodeState : NodeState
         _majority = majority;
     }
 
-    public void AddLog(string leaderId, LogEntry logEntry)
+    public override void AddLog(LogEntry logEntry)
     {
-        
-        _log.Add(logEntry);
-        if(!_matchIndex.ContainsKey(leaderId))
-            _matchIndex.Add(leaderId, LogCount);
+        base.AddLog(logEntry);
+        if(!_matchIndex.ContainsKey(CurrentLeader))
+            _matchIndex.Add(CurrentLeader, LogCount);
         else
-            _matchIndex[leaderId] = LogCount;
+            _matchIndex[CurrentLeader] = LogCount;
     }
 
     public (int, int, ImmutableList<LogEntry>) GetNodeNextInfo(string nodeId)
@@ -73,6 +72,7 @@ public class LeaderNodeState : NodeState
 
     public IEnumerable<LogEntry> TryCommitLogEntries()
     {
+        // Ensures that new leader cannot commit logs from previos terms until it gets new message. 
         while (CommitLength < LogCount)
         {
             var matchedNodesCount = 0;
