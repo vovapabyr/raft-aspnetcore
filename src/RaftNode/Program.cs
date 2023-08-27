@@ -1,4 +1,6 @@
-using RaftCore;
+using Akka.DependencyInjection;
+using Akka.Hosting;
+using RaftCore.Actors;
 using RaftCore.Services;
 using RaftNode.Extensions;
 using RaftNode.Options;
@@ -13,15 +15,23 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddSingleton<IClusterInfoService, SimpleClusterInfoService>();
-builder.Services.AddSingleton<RaftModule>();
-builder.Services.AddSingleton<INodeRoleBehaviourService, FollowerBehaviourService>();
-builder.Services.AddSingleton<INodeRoleBehaviourService, CandidateBehaviourService>();
-builder.Services.AddSingleton<INodeRoleBehaviourService, LeaderBehaviourService>();
-builder.Services.AddSingleton<NodeStateService>();
 builder.Services.Configure<ClusterInfoOptions>(builder.Configuration.GetSection(ClusterInfoOptions.Key));
 builder.Services.AddGrpc();
 builder.Services.ConfigureGrpcClients(builder.Configuration);
-builder.Services.AddHostedService<RaftNodeHostedService>();
+builder.Services.AddAkka("raft", (builder, provider) =>
+{
+    builder
+        .ConfigureLoggers((conf) =>
+        {
+            conf.LogLevel = Akka.Event.LogLevel.DebugLevel;
+        })
+        .WithActors((system, registry) =>
+        {
+            var rootRaftProps = DependencyResolver.For(system).Props<RaftActor>();
+            var rootSupervisor = system.ActorOf(rootRaftProps, "raft-root-actor");
+            registry.Register<RaftActor>(rootSupervisor);
+        });
+});
 
 var app = builder.Build();
 
@@ -36,6 +46,6 @@ app.UseHttpsRedirection();
 app.UseRouting();
 
 app.MapControllers();
-app.MapGrpcService<DiscoveryService>();
+app.MapGrpcService<RaftMessagingService>();
 
 app.Run();

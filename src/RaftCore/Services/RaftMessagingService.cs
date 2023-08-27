@@ -1,19 +1,43 @@
+using Akka.Actor;
+using Akka.Hosting;
+using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
+using RaftCore.Actors;
 using static RaftCore.RaftMessagingService;
 
 namespace RaftCore.Services;
 
 public class RaftMessagingService : RaftMessagingServiceBase
 {
-    private readonly RaftModule _raftModule;
+    private readonly IRequiredActor<RaftActor> _raftARefProvider;
 
-    public RaftMessagingService(RaftModule raftModule)
+    public RaftMessagingService(IRequiredActor<RaftActor> raftARefProvider)
     {
-        _raftModule = raftModule;
+        _raftARefProvider = raftARefProvider;
     }
 
-    public override Task<VoteResponse> Vote(VoteRequest request, ServerCallContext context)
+    public override Task<Empty> SendVoteRequest(VoteRequest request, ServerCallContext context)
     {
-        return base.Vote(request, context);
+        _raftARefProvider.ActorRef.Tell(request);
+        return Task.FromResult(new Empty());
+    }
+
+
+    public override Task<Empty> SendVoteResponse(VoteResponse request, ServerCallContext context)
+    {
+        _raftARefProvider.ActorRef.Tell(request);
+        return Task.FromResult(new Empty());
+    }
+
+    public override Task<Empty> SendAppendEntriesRequest(AppendEntriesRequest request, ServerCallContext context)
+    {
+        _raftARefProvider.ActorRef.Tell(request);
+        return Task.FromResult(new Empty());
+    }
+
+    public override Task<Empty> SendAppendEntriesResponse(AppendEntriesResponse request, ServerCallContext context)
+    {
+        _raftARefProvider.ActorRef.Tell(request);
+        return Task.FromResult(new Empty());
     }
 } 

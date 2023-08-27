@@ -8,10 +8,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Protobuf Include="Protos\discover.proto" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="Grpc.AspNetCore" Version="2.40.0" />
     <PackageReference Include="Polly" Version="7.2.4" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.2.3" />
