@@ -21,27 +21,27 @@ public class RaftController : ControllerBase
         _logger = logger;
     }
 
-    [HttpPost("command")]
-    public async Task<IActionResult> AddNewCommand(string command)
+    [HttpPost()]
+    public async Task<IActionResult> AddNewCommand(string cmd)
     {
         var inbox = Inbox.Create(_actorSystem);
-        _logger.LogInformation($"Trying to add new command: '{ command }'.");
-        inbox.Send(_raftARefProvider.ActorRef, new AddNewCommand(command));
+        _logger.LogInformation($"Trying to add new command: '{ cmd }'.");
+        inbox.Send(_raftARefProvider.ActorRef, new AddNewCommand(cmd));
 
         // Fails on timeout = TimeSpan.MaxValue, because of _system.Scheduler.MonotonicClock + timeout (Inbox.cs 556line)
         var response = await inbox.ReceiveAsync(TimeSpan.MaxValue.Add(-TimeSpan.FromDays(1)));
-        _logger.LogInformation($"Got response to '{ command }'. Response: '{ response.GetType() }'.");
+        _logger.LogInformation($"Got response to '{ cmd }'. Response: '{ response.GetType() }'.");
         if (response is CommandSuccessfullyCommited acknowledgment)
             return Ok(acknowledgment);
 
         if (response is RedirectToLeader redirectToLeader)
             return BadRequest(redirectToLeader);
 
-        _logger.LogWarning($"Failed to add command '{ command }'. Response: '{ response }'.");
+        _logger.LogWarning($"Failed to add command '{ cmd }'. Response: '{ response }'.");
         return BadRequest("Unknown error.");
     }
 
-    [HttpGet("info")]
+    [HttpGet()]
     public async Task<IActionResult> GetNodeInfo()
     {
         var inbox = Inbox.Create(_actorSystem);
