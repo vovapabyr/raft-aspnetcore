@@ -1,5 +1,7 @@
 # Raft consensus algorithm
-The purpose of this project is to build state machine replication with total order broadcast following guidelines of the [In Search of an Understandable Consensus Algorithm](https://raft.github.io/raft.pdf) paper using the .NET platform. The solution consists of two projects:
+The purpose of this project is to build state machine replication with total order broadcast following guidelines of the [In Search of an Understandable Consensus Algorithm](https://raft.github.io/raft.pdf) paper using the .NET platform. ([Go to Results section](#results))
+
+Here we will give a thorough explanation of the solution. The solution consists of two projects:
  - [RaftCore](/src/RaftCore/) project - as it's in its name, it's the core project which actually implements the Raft protocol. Here is some information worth mentioning:
     - Grpc is used as the communication protocol between nodes. Check [raft.proto](/src/RaftCore/Protos/raft.proto) to see the defined messages and services.
     - [Akk.NET](https://getakka.net/), which implements an actor model, that solves the problem of concurrency in a clear and concise way, removing any kind of need for pessimistic locking.
