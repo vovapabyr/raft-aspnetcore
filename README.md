@@ -1,4 +1,3 @@
-
 # Raft consensus algorithm
 The purpose of this project is to build state machine replication with total order broadcast following guidelines of the [In Search of an Understandable Consensus Algorithm](https://raft.github.io/raft.pdf) paper using the .NET platform. The solution consists of two projects:
  - [RaftCore](/src/RaftCore/) project - as it's in its name, it's the core project which actually implements the Raft protocol. Here is some information worth mentioning:
@@ -25,7 +24,9 @@ The purpose of this project is to build state machine replication with total ord
     -  container's name prefix - usually it's the folder's name where the [docker-compose.yml](/docker-compose.yml) is located + the name of the service specified in the [docker-compose.yml](/docker-compose.yml), which is ```raftnode``` by default. So, for example, if the folder's name is ```asp-netcore``` and the service's name remains ```raftnode```, then the prefix would be ```asp-netcore-raftnode```.
     - container's index - by default docker compose add index when ```--scale```parameter is more than one.
 
-So, if we run ```docker compose up --scale raftnode=3``` it would create three nodes with the names: ```asp-netcore-raftnode-1```, ```asp-netcore-raftnode-2```, ```asp-netcore-raftnode-3```. In order for nodes to be able to communicate we need to set in [appsettings.json](/src/RaftNode/appsettings.json) the ```NodeNamePrefix``` option to ```raft-aspnetcore-raftnode``` and ```NodesCount``` to 3 (the same value we set for --scale parameter). Note, that this is not part of the Raft specification and is an example of a custom simple discovery process.    
+    So, if we run ```docker compose up --scale raftnode=3``` it would create three nodes with the names: ```asp-netcore-raftnode-1```, ```asp-netcore-raftnode-2```, ```asp-netcore-raftnode-3```. In order for nodes to be able to communicate we need to set in [appsettings.json](/src/RaftNode/appsettings.json) the ```NodeNamePrefix``` option to ```raft-aspnetcore-raftnode``` and ```NodesCount``` to 3 (the same value we set for --scale parameter). Note, that this is not part of the Raft specification and is an example of a custom simple discovery process.
+
+    - raft node exposes two endpoints: one to add the new message (```POST /raft?cmd=```) and another one to get node info (```GET /raft```). If you try to add the new message not to the leader, node will response with the host name of the current leader. 
 
 ## Results
 Next, we will do some tests with three nodes cluster (```ClusterInfo.NodesCount=3```).
@@ -36,7 +37,7 @@ Then let's ensure that a single node is selected as Leader:
 ![two-nodes-leader.png](/results/two-nodes-leader.png)
 ![two-nodes-follower.png](/results/two-nodes-follower.png)
 ### Add two messages 
-Now let's add ```msg1, msg2``` with the help of sending POST requests ```/raft/command?command=msg1```, ```/raft/command?command=msg2``` to the Leader. Let's ensure that two messages were successfully replicated and committed (commitLength=2):
+Now let's add ```msg1, msg2``` with the help of sending POST requests ```/raft?cmd=msg1```, ```/raft?cmd=msg2``` to the Leader. Let's ensure that two messages were successfully replicated and committed (commitLength=2):
 ![two-nodes-follower-two-messages.png](/results/two-nodes-follower-two-messages.png)
 ![two-nodes-leader-two-messages.png](/results/two-nodes-leader-two-messages.png)
 ### Start the third node
